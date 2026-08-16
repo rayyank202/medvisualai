@@ -180,13 +180,13 @@ function Brain() {
     if (group.current) {
       group.current.rotation.y = clock.elapsedTime * 0.12 + journeyState.mouseX * 0.3;
       group.current.visible = appear > 0.01;
-      group.current.scale.setScalar(0.7 + appear * 0.55);
+      group.current.scale.setScalar(0.4 + appear * 0.3);
     }
     lobes.current.forEach((m, i) => {
       if (!m) return;
       const base = LOBES[i]!.pos;
       const dir = new THREE.Vector3(base[0], base[1], base[2]).normalize();
-      const off = dir.multiplyScalar(spread * 1.9);
+      const off = dir.multiplyScalar(spread * 1.5);
       m.position.set(base[0] + off.x, base[1] + off.y + Math.sin(clock.elapsedTime + i) * 0.06, base[2] + off.z);
       const mat = m.material as THREE.MeshStandardMaterial;
       mat.opacity = appear * 0.85;
@@ -232,13 +232,13 @@ function BlockSlab({ block, i, onOpen }: { block: GraphicBlock; i: number; onOpe
   const color = useMemo(() => new THREE.Color(block.color), [block.color]);
 
   const angle = (i / GRAPHIC_BLOCKS.length) * Math.PI * 2 - Math.PI / 2;
-  const radius = 6.4;
+  const radius = 4.6;
   const base = useMemo(
     () =>
       new THREE.Vector3(
         Math.cos(angle) * radius,
         Math.sin(angle) * radius * 0.62 + 0.4,
-        BRAIN_Z + 2.5 + Math.sin(i * 1.7) * 1.4,
+        BRAIN_Z + 4.5 + Math.sin(i * 1.7) * 1.2,
       ),
     [angle, i],
   );
@@ -277,7 +277,7 @@ function BlockSlab({ block, i, onOpen }: { block: GraphicBlock; i: number; onOpe
           onOpen(block);
         }}
       >
-        <boxGeometry args={[2.2, 1.4, 0.14]} />
+        <boxGeometry args={[1.9, 1.15, 0.12]} />
         <meshStandardMaterial
           color={color}
           emissive={color}
@@ -330,8 +330,8 @@ function Bloodstream() {
   const curve = useMemo(
     () =>
       new THREE.CatmullRomCurve3([
-        new THREE.Vector3(0, -1, -38),
-        new THREE.Vector3(1.5, -3, -52),
+        new THREE.Vector3(0, -1, -44),
+        new THREE.Vector3(1.5, -3, -56),
         new THREE.Vector3(-1.5, -4.6, -66),
         new THREE.Vector3(0.6, -4, -80),
         new THREE.Vector3(0, -4, -98),

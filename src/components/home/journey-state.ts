@@ -19,10 +19,10 @@ export function cameraAt(p: number): [number, number, number] {
     z = -1 - t * 19; // descent through skin / muscle / skeleton
   } else if (p < 0.6) {
     const t = (p - 0.32) / 0.28;
-    z = -20 - t * 5.5; // slow approach, brain act
+    z = -20 - t * 2; // slow approach, brain act
   } else if (p < 0.8) {
     const t = (p - 0.6) / 0.2;
-    z = -25.5 - t * 45; // dive into the vessel
+    z = -22 - t * 48.5; // dive into the vessel
     y = -4 * Math.min(1, t * 1.6);
   } else {
     const t = (p - 0.8) / 0.2;
