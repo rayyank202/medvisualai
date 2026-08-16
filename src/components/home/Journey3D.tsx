@@ -149,7 +149,7 @@ function LayerShell({
         transparent
         opacity={0}
         side={THREE.DoubleSide}
-        wireframe={wire}
+        wireframe={wire === true}
         depthWrite={false}
         blending={THREE.AdditiveBlending}
       />
