@@ -228,6 +228,7 @@ function Brain() {
 function BlockSlab({ block, i, onOpen }: { block: GraphicBlock; i: number; onOpen: (b: GraphicBlock) => void }) {
   const group = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
+  const [shown, setShown] = useState(false);
   const color = useMemo(() => new THREE.Color(block.color), [block.color]);
 
   const angle = (i / GRAPHIC_BLOCKS.length) * Math.PI * 2 - Math.PI / 2;
@@ -247,6 +248,7 @@ function BlockSlab({ block, i, onOpen }: { block: GraphicBlock; i: number; onOpe
     if (!g) return;
     const appear = band(journeyState.progress, 0.4, 0.62, 0.07);
     g.visible = appear > 0.01;
+    if (g.visible !== shown) setShown(g.visible);
     const bob = Math.sin(clock.elapsedTime * 0.9 + i) * 0.16;
     g.position.set(base.x * (0.4 + appear * 0.6), base.y * (0.4 + appear * 0.6) + bob, base.z);
     const target = hovered ? 1.09 : 1;
@@ -286,6 +288,7 @@ function BlockSlab({ block, i, onOpen }: { block: GraphicBlock; i: number; onOpe
           metalness={0.2}
         />
       </mesh>
+      {shown && (
       <Html center distanceFactor={9} pointerEvents="none" zIndexRange={[20, 0]}>
         <div className="w-44 select-none text-center">
           <p className="text-[13px] font-semibold text-white drop-shadow">{block.name}</p>
@@ -297,6 +300,7 @@ function BlockSlab({ block, i, onOpen }: { block: GraphicBlock; i: number; onOpe
           )}
         </div>
       </Html>
+      )}
     </group>
   );
 }
