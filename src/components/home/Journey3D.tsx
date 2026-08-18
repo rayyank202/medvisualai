@@ -43,74 +43,69 @@ function CameraRig() {
 
 /* ------------------------------------------------------- act 0/1: figure */
 
-function sampleBody(count: number) {
-  const pts = new Float32Array(count * 3);
-  const rnd = (s: number) => (Math.random() - 0.5) * s;
-  for (let i = 0; i < count; i++) {
-    const r = Math.random();
-    let x = 0;
-    let y = 0;
-    let z = 0;
-    if (r < 0.12) {
-      const t = Math.random() * Math.PI * 2;
-      const u = Math.random() * Math.PI;
-      x = Math.sin(u) * Math.cos(t) * 0.5;
-      y = 3.15 + Math.cos(u) * 0.66;
-      z = Math.sin(u) * Math.sin(t) * 0.5;
-    } else if (r < 0.5) {
-      y = 0.2 + Math.random() * 2.35;
-      const w = 0.95 - Math.abs(y - 1.75) * 0.16;
-      x = rnd(w * 2);
-      z = rnd(0.75);
-    } else if (r < 0.75) {
-      const side = Math.random() < 0.5 ? -1 : 1;
-      const t = Math.random();
-      x = side * (0.95 + t * 1.4) + rnd(0.14);
-      y = 2.4 - t * 2.6 + rnd(0.14);
-      z = rnd(0.28);
-    } else {
-      const side = Math.random() < 0.5 ? -1 : 1;
-      const t = Math.random();
-      x = side * (0.44 - t * 0.05) + rnd(0.28 - t * 0.08);
-      y = 0.2 - t * 3.1;
-      z = rnd(0.32);
-    }
-    pts.set([x, y, z], i * 3);
-  }
-  return pts;
-}
-
+/** Hero figure: a translucent, glowing anatomical body (skin shell + inner core). */
 function BodyFigure() {
-  const positions = useMemo(() => sampleBody(9000), []);
-  const points = useRef<THREE.Points>(null);
-  const mat = useRef<THREE.PointsMaterial>(null);
+  const segments = useMemo(() => makeBodySegments(), []);
+  const group = useRef<THREE.Group>(null);
+  const skin = useRef<THREE.MeshPhysicalMaterial>(null);
+  const core = useRef<THREE.MeshBasicMaterial>(null);
 
   useFrame(({ clock }) => {
     const p = journeyState.progress;
-    if (points.current) {
-      points.current.rotation.y = Math.sin(clock.elapsedTime * 0.16) * 0.24 + journeyState.mouseX * 0.22;
-      points.current.scale.setScalar(1 + band(p, 0.1, 0.3) * 1.5);
+    const g = group.current;
+    if (g) {
+      g.rotation.y = Math.sin(clock.elapsedTime * 0.16) * 0.22 + journeyState.mouseX * 0.2;
+      const breathe = 1 + Math.sin(clock.elapsedTime * 0.9) * 0.008;
+      g.scale.setScalar((1 + band(p, 0.1, 0.3) * 1.4) * breathe);
+      g.visible = p < 0.24;
     }
-    if (mat.current) mat.current.opacity = 0.9 * (1 - clamp01((p - 0.13) / 0.1));
+    const fade = 1 - clamp01((p - 0.13) / 0.1);
+    if (skin.current) skin.current.opacity = 0.3 * fade;
+    if (core.current) core.current.opacity = 0.18 * fade;
   });
 
   return (
-    <points ref={points} position={[0, -0.3, -8]}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-      </bufferGeometry>
-      <pointsMaterial
-        ref={mat}
-        size={0.03}
-        color="#a8e2ff"
-        transparent
-        opacity={0.9}
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-      />
-    </points>
+    <group ref={group} position={[0, -0.3, -8]}>
+      {segments.map((s, i) => (
+        <group
+          key={i}
+          position={s.position}
+          rotation={s.rotation ?? [0, 0, 0]}
+          scale={s.scale ?? [1, 1, 1]}
+        >
+          <mesh geometry={s.geometry}>
+            <meshPhysicalMaterial
+              ref={i === 0 ? skin : null}
+              color="#bfe6ff"
+              emissive="#0a4fff"
+              emissiveIntensity={0.35}
+              transparent
+              opacity={0.3}
+              roughness={0.22}
+              metalness={0}
+              transmission={0.65}
+              thickness={0.9}
+              clearcoat={1}
+              depthWrite={false}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+          <mesh geometry={s.geometry} scale={0.9}>
+            <meshBasicMaterial
+              ref={i === 0 ? core : null}
+              color="#4fd8ff"
+              transparent
+              opacity={0.18}
+              depthWrite={false}
+              blending={THREE.AdditiveBlending}
+            />
+          </mesh>
+        </group>
+      ))}
+    </group>
   );
 }
+
 
 /** A group of anatomical segments that fades in and out across a scroll band. */
 function AnatomyLayer({
