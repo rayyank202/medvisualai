@@ -75,7 +75,7 @@ function BodyFigure() {
         >
           <mesh geometry={s.geometry}>
             <meshPhysicalMaterial
-              ref={i === 0 ? skin : undefined}
+              ref={i === 0 ? skin : null}
               color="#bfe6ff"
               emissive="#0a4fff"
               emissiveIntensity={0.35}
@@ -92,7 +92,7 @@ function BodyFigure() {
           </mesh>
           <mesh geometry={s.geometry} scale={0.9}>
             <meshBasicMaterial
-              ref={i === 0 ? core : undefined}
+              ref={i === 0 ? core : null}
               color="#4fd8ff"
               transparent
               opacity={0.18}
