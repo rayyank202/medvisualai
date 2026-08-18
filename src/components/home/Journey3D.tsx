@@ -248,7 +248,7 @@ function Brain() {
       const mat = m.material as THREE.MeshStandardMaterial;
       mat.opacity = appear;
       // neural activity wave travelling across the lobes
-      mat.emissiveIntensity = 0.16 + Math.max(0, Math.sin(clock.elapsedTime * 1.6 - i * 0.55)) * 0.5;
+      mat.emissiveIntensity = 0.06 + Math.max(0, Math.sin(clock.elapsedTime * 1.6 - i * 0.55)) * 0.22;
     });
   });
 
@@ -275,7 +275,7 @@ function Brain() {
           />
         </mesh>
       ))}
-      <pointLight color="#bfe9ff" intensity={16} distance={14} />
+      <pointLight color="#bfe9ff" intensity={10} distance={14} />
     </group>
   );
 }
@@ -447,8 +447,11 @@ function Bloodstream() {
     [],
   );
 
+  const root = useRef<THREE.Group>(null);
+
   useFrame(({ clock }, delta) => {
-    const visible = journeyState.progress > 0.48;
+    const visible = journeyState.progress > 0.5;
+    if (root.current) root.current.visible = visible;
     if (red.current) red.current.visible = visible;
     if (white.current) white.current.visible = visible;
     if (!visible) return;
@@ -489,7 +492,7 @@ function Bloodstream() {
   });
 
   return (
-    <group>
+    <group ref={root} visible={false}>
       <mesh geometry={tube}>
         <meshStandardMaterial
           color="#6d1226"
@@ -566,7 +569,7 @@ function Scene() {
       <hemisphereLight args={["#bfe4ff", "#0a1c2e", 0.7]} />
       <directionalLight position={[4, 6, 6]} intensity={1.4} color={CYAN} />
       <directionalLight position={[-6, -2, -4]} intensity={0.7} color={BLUE} />
-      <spotLight position={[0, 6, -28]} angle={0.7} penumbra={0.9} intensity={90} color="#dff2ff" distance={40} />
+      <spotLight position={[0, 6, -28]} angle={0.7} penumbra={0.9} intensity={55} color="#dff2ff" distance={40} />
       <CameraRig />
       <Motes />
       <BodyFigure />
@@ -610,7 +613,7 @@ function Scene() {
       <Blocks />
       <Bloodstream />
       {!(globalThis as any).__noFX && (<EffectComposer enableNormalPass={false}>
-        <Bloom intensity={0.75} luminanceThreshold={0.35} luminanceSmoothing={0.5} mipmapBlur />
+        <Bloom intensity={0.5} luminanceThreshold={0.62} luminanceSmoothing={0.5} mipmapBlur />
         <Vignette eskil={false} offset={0.25} darkness={0.75} />
       </EffectComposer>)}
     </>
