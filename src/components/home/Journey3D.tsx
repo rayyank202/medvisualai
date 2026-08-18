@@ -1,11 +1,20 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
+import { EffectComposer, Bloom, DepthOfField, Vignette } from "@react-three/postprocessing";
 import { useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useNavigate } from "@tanstack/react-router";
 import { GRAPHIC_BLOCKS, preselectGraphic, type GraphicBlock } from "@/lib/graphic-blocks";
 import { openChatWidget } from "@/components/site/ChatWidget";
 import { journeyState, cameraAt, band, clamp01 } from "./journey-state";
+import {
+  makeBodySegments,
+  makeCerebellumGeometry,
+  makeCortexGeometry,
+  makeRedCellGeometry,
+  makeSkeletonSegments,
+  type Segment,
+} from "./anatomy";
 
 const BRAIN_Z = -33;
 const BLUE = new THREE.Color("#0A4FFF");
@@ -43,32 +52,28 @@ function sampleBody(count: number) {
     let y = 0;
     let z = 0;
     if (r < 0.12) {
-      // head
       const t = Math.random() * Math.PI * 2;
       const u = Math.random() * Math.PI;
-      x = Math.sin(u) * Math.cos(t) * 0.55;
-      y = 3.1 + Math.cos(u) * 0.7;
+      x = Math.sin(u) * Math.cos(t) * 0.5;
+      y = 3.15 + Math.cos(u) * 0.66;
       z = Math.sin(u) * Math.sin(t) * 0.5;
     } else if (r < 0.5) {
-      // torso
-      y = 0.4 + Math.random() * 2.3;
-      const w = 1.05 - Math.abs(y - 1.9) * 0.14;
+      y = 0.2 + Math.random() * 2.35;
+      const w = 0.95 - Math.abs(y - 1.75) * 0.16;
       x = rnd(w * 2);
-      z = rnd(0.8);
+      z = rnd(0.75);
     } else if (r < 0.75) {
-      // arms
       const side = Math.random() < 0.5 ? -1 : 1;
       const t = Math.random();
-      x = side * (1.05 + t * 1.35) + rnd(0.16);
-      y = 2.6 - t * 2.7 + rnd(0.16);
-      z = rnd(0.3);
+      x = side * (0.95 + t * 1.4) + rnd(0.14);
+      y = 2.4 - t * 2.6 + rnd(0.14);
+      z = rnd(0.28);
     } else {
-      // legs
       const side = Math.random() < 0.5 ? -1 : 1;
       const t = Math.random();
-      x = side * 0.45 + rnd(0.3);
-      y = 0.4 - t * 3.2;
-      z = rnd(0.35);
+      x = side * (0.44 - t * 0.05) + rnd(0.28 - t * 0.08);
+      y = 0.2 - t * 3.1;
+      z = rnd(0.32);
     }
     pts.set([x, y, z], i * 3);
   }
@@ -76,20 +81,17 @@ function sampleBody(count: number) {
 }
 
 function BodyFigure() {
-  const positions = useMemo(() => sampleBody(6000), []);
+  const positions = useMemo(() => sampleBody(9000), []);
   const points = useRef<THREE.Points>(null);
   const mat = useRef<THREE.PointsMaterial>(null);
 
   useFrame(({ clock }) => {
     const p = journeyState.progress;
     if (points.current) {
-      points.current.rotation.y = Math.sin(clock.elapsedTime * 0.16) * 0.28 + journeyState.mouseX * 0.25;
-      const s = 1 + band(p, 0.1, 0.3) * 1.6;
-      points.current.scale.setScalar(s);
+      points.current.rotation.y = Math.sin(clock.elapsedTime * 0.16) * 0.24 + journeyState.mouseX * 0.22;
+      points.current.scale.setScalar(1 + band(p, 0.1, 0.3) * 1.5);
     }
-    if (mat.current) {
-      mat.current.opacity = 0.9 * (1 - clamp01((p - 0.14) / 0.12));
-    }
+    if (mat.current) mat.current.opacity = 0.9 * (1 - clamp01((p - 0.13) / 0.1));
   });
 
   return (
@@ -99,8 +101,8 @@ function BodyFigure() {
       </bufferGeometry>
       <pointsMaterial
         ref={mat}
-        size={0.035}
-        color="#9fdcff"
+        size={0.03}
+        color="#a8e2ff"
         transparent
         opacity={0.9}
         depthWrite={false}
@@ -110,87 +112,143 @@ function BodyFigure() {
   );
 }
 
-/** Skin → muscle → skeleton shells the camera passes through. */
-function LayerShell({
+/** A group of anatomical segments that fades in and out across a scroll band. */
+function AnatomyLayer({
+  segments,
   z,
-  color,
   from,
   to,
-  wire,
+  maxOpacity,
+  color,
+  emissive,
+  roughness = 0.6,
+  metalness = 0.05,
+  scale = 1,
   breathe = 0,
+  wireframe = false,
 }: {
+  segments: Segment[];
   z: number;
-  color: string;
   from: number;
   to: number;
-  wire?: boolean;
+  maxOpacity: number;
+  color: string;
+  emissive: string;
+  roughness?: number;
+  metalness?: number;
+  scale?: number;
   breathe?: number;
+  wireframe?: boolean;
 }) {
-  const mesh = useRef<THREE.Mesh>(null);
-  const mat = useRef<THREE.MeshBasicMaterial>(null);
+  const group = useRef<THREE.Group>(null);
+  const material = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(color),
+        emissive: new THREE.Color(emissive),
+        emissiveIntensity: 0.35,
+        roughness,
+        metalness,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        wireframe,
+      }),
+    [color, emissive, roughness, metalness, wireframe],
+  );
 
   useFrame(({ clock }) => {
     const a = band(journeyState.progress, from, to, 0.06);
-    if (mat.current) mat.current.opacity = a * (wire ? 0.55 : 0.28);
-    if (mesh.current) {
-      const b = 1 + Math.sin(clock.elapsedTime * 1.6) * breathe;
-      mesh.current.scale.set(b, 1, b);
-      mesh.current.rotation.y = clock.elapsedTime * 0.1;
-      mesh.current.visible = a > 0.01;
+    material.opacity = a * maxOpacity;
+    const g = group.current;
+    if (g) {
+      g.visible = a > 0.01;
+      const b = 1 + Math.sin(clock.elapsedTime * 1.5) * breathe;
+      g.scale.set(scale * b, scale, scale * b);
+      g.rotation.y = Math.sin(clock.elapsedTime * 0.18) * 0.22 + journeyState.mouseX * 0.16;
     }
   });
 
   return (
-    <mesh ref={mesh} position={[0, 0, z]}>
-      <capsuleGeometry args={[2.4, 5.4, 8, wire ? 24 : 48]} />
-      <meshBasicMaterial
-        ref={mat}
-        color={color}
-        transparent
-        opacity={0}
-        side={THREE.DoubleSide}
-        wireframe={wire === true}
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-      />
-    </mesh>
+    <group ref={group} position={[0, -0.2, z]}>
+      {segments.map((s, i) => (
+        <mesh
+          key={i}
+          geometry={s.geometry}
+          material={material}
+          position={s.position}
+          rotation={s.rotation ?? [0, 0, 0]}
+          scale={s.scale ?? [1, 1, 1]}
+        />
+      ))}
+    </group>
   );
 }
 
 /* --------------------------------------------------------- act 2: brain */
 
-const LOBES = [
-  { pos: [0, 1.1, 0.9], scale: 1.25, color: "#7fb0ff" },
-  { pos: [-1.5, 0.7, 0.2], scale: 1.15, color: "#8ce0ff" },
-  { pos: [1.5, 0.7, 0.2], scale: 1.15, color: "#a5d9ff" },
-  { pos: [-1.2, -0.4, 0.6], scale: 1, color: "#8ff0d6" },
-  { pos: [1.2, -0.4, 0.6], scale: 1, color: "#b8c9ff" },
-  { pos: [0, 0.3, -1.2], scale: 1.1, color: "#6fd3ff" },
-  { pos: [0, -1.35, -0.9], scale: 0.85, color: "#7ef0b5" },
-] as const;
+interface Lobe {
+  pos: [number, number, number];
+  color: string;
+  kind: "cortex" | "cerebellum" | "stem";
+  size: number;
+  stretch?: [number, number, number];
+}
+
+const LOBES: Lobe[] = [
+  { pos: [-0.62, 0.6, 0.95], color: "#f0a8c4", kind: "cortex", size: 0.78, stretch: [1, 0.95, 1.15] },
+  { pos: [0.62, 0.6, 0.95], color: "#f2b3cb", kind: "cortex", size: 0.78, stretch: [1, 0.95, 1.15] },
+  { pos: [-0.6, 0.95, -0.25], color: "#8ab4ff", kind: "cortex", size: 0.72, stretch: [1, 0.9, 1] },
+  { pos: [0.6, 0.95, -0.25], color: "#9dc2ff", kind: "cortex", size: 0.72, stretch: [1, 0.9, 1] },
+  { pos: [-1.05, -0.18, 0.35], color: "#f5c383", kind: "cortex", size: 0.6, stretch: [0.75, 0.8, 1.35] },
+  { pos: [1.05, -0.18, 0.35], color: "#f7cd95", kind: "cortex", size: 0.6, stretch: [0.75, 0.8, 1.35] },
+  { pos: [-0.5, 0.4, -1.15], color: "#8fe3b6", kind: "cortex", size: 0.62, stretch: [1, 0.95, 0.85] },
+  { pos: [0.5, 0.4, -1.15], color: "#a6ecc6", kind: "cortex", size: 0.62, stretch: [1, 0.95, 0.85] },
+  { pos: [0, -0.85, -0.95], color: "#c3a8f5", kind: "cerebellum", size: 0.72 },
+  { pos: [0, -1.15, -0.15], color: "#e7d3b4", kind: "stem", size: 0.26 },
+];
 
 function Brain() {
   const group = useRef<THREE.Group>(null);
   const lobes = useRef<(THREE.Mesh | null)[]>([]);
+
+  const geometries = useMemo(
+    () =>
+      LOBES.map((l) =>
+        l.kind === "cerebellum"
+          ? makeCerebellumGeometry(l.size)
+          : l.kind === "stem"
+            ? new THREE.CapsuleGeometry(l.size, 0.7, 8, 20)
+            : makeCortexGeometry(l.size, l.stretch ?? [1, 1, 1], 4.6, 0.16),
+      ),
+    [],
+  );
 
   useFrame(({ clock }) => {
     const p = journeyState.progress;
     const appear = band(p, 0.3, 0.66, 0.08);
     const spread = clamp01((p - 0.36) / 0.16);
     if (group.current) {
-      group.current.rotation.y = clock.elapsedTime * 0.12 + journeyState.mouseX * 0.3;
+      group.current.rotation.y = clock.elapsedTime * 0.1 + journeyState.mouseX * 0.28;
+      group.current.rotation.x = journeyState.mouseY * -0.1;
       group.current.visible = appear > 0.01;
-      group.current.scale.setScalar(0.4 + appear * 0.3);
+      group.current.scale.setScalar(0.45 + appear * 0.35);
     }
     lobes.current.forEach((m, i) => {
       if (!m) return;
       const base = LOBES[i]!.pos;
-      const dir = new THREE.Vector3(base[0], base[1], base[2]).normalize();
+      const dir = new THREE.Vector3(base[0], base[1] + 0.15, base[2]).normalize();
       const off = dir.multiplyScalar(spread * 1.5);
-      m.position.set(base[0] + off.x, base[1] + off.y + Math.sin(clock.elapsedTime + i) * 0.06, base[2] + off.z);
+      m.position.set(
+        base[0] + off.x,
+        base[1] + off.y + Math.sin(clock.elapsedTime * 0.8 + i) * 0.05,
+        base[2] + off.z,
+      );
       const mat = m.material as THREE.MeshStandardMaterial;
-      mat.opacity = appear * 0.85;
-      mat.emissiveIntensity = 0.5 + Math.sin(clock.elapsedTime * 1.4 + i * 0.7) * 0.35;
+      mat.opacity = appear;
+      // neural activity wave travelling across the lobes
+      mat.emissiveIntensity = 0.16 + Math.max(0, Math.sin(clock.elapsedTime * 1.6 - i * 0.55)) * 0.5;
     });
   });
 
@@ -199,26 +257,25 @@ function Brain() {
       {LOBES.map((l, i) => (
         <mesh
           key={i}
+          geometry={geometries[i]!}
           ref={(el) => {
             lobes.current[i] = el;
           }}
-          position={l.pos as unknown as [number, number, number]}
-          scale={l.scale}
+          position={l.pos}
+          rotation={l.kind === "stem" ? [0.5, 0, 0] : [0, 0, 0]}
         >
-          <icosahedronGeometry args={[0.95, 3]} />
           <meshStandardMaterial
             color={l.color}
             emissive={l.color}
-            emissiveIntensity={0.6}
-            roughness={0.35}
-            metalness={0.1}
+            emissiveIntensity={0.2}
+            roughness={0.72}
+            metalness={0.02}
             transparent
             opacity={0}
-            flatShading
           />
         </mesh>
       ))}
-      <pointLight color="#00D5FF" intensity={22} distance={16} />
+      <pointLight color="#bfe9ff" intensity={16} distance={14} />
     </group>
   );
 }
@@ -255,9 +312,9 @@ function BlockSlab({ block, i, onOpen }: { block: GraphicBlock; i: number; onOpe
     g.scale.lerp(new THREE.Vector3(target, target, target).multiplyScalar(appear), 0.12);
     g.lookAt(camera.position);
     if (hovered) g.rotation.z += journeyState.mouseX * 0.05;
-    const mat = (g.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial;
-    mat.opacity = appear * (hovered ? 0.85 : 0.5);
-    mat.emissiveIntensity = hovered ? 1.5 : 0.55 + Math.sin(clock.elapsedTime * 2 + i) * 0.15;
+    const mat = (g.children[0] as THREE.Mesh).material as THREE.MeshPhysicalMaterial;
+    mat.opacity = appear * (hovered ? 0.9 : 0.55);
+    mat.emissiveIntensity = hovered ? 1.2 : 0.35 + Math.sin(clock.elapsedTime * 2 + i) * 0.12;
   });
 
   return (
@@ -277,29 +334,34 @@ function BlockSlab({ block, i, onOpen }: { block: GraphicBlock; i: number; onOpe
           onOpen(block);
         }}
       >
-        <boxGeometry args={[1.9, 1.15, 0.12]} />
-        <meshStandardMaterial
+        <boxGeometry args={[1.9, 1.15, 0.14]} />
+        <meshPhysicalMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={0.6}
+          emissiveIntensity={0.4}
           transparent
-          opacity={0.5}
-          roughness={0.1}
-          metalness={0.2}
+          opacity={0.55}
+          roughness={0.08}
+          metalness={0.05}
+          clearcoat={1}
+          clearcoatRoughness={0.05}
+          transmission={0.35}
+          thickness={0.6}
+          ior={1.4}
         />
       </mesh>
       {shown && (
-      <Html center distanceFactor={9} pointerEvents="none" zIndexRange={[20, 0]}>
-        <div className="w-44 select-none text-center">
-          <p className="text-[13px] font-semibold text-white drop-shadow">{block.name}</p>
-          {hovered && (
-            <>
-              <p className="mt-1 text-[10px] leading-tight text-white/75">{block.description}</p>
-              <p className="mt-1 text-[10px] font-semibold text-white">Open →</p>
-            </>
-          )}
-        </div>
-      </Html>
+        <Html center distanceFactor={9} pointerEvents="none" zIndexRange={[20, 0]}>
+          <div className="w-44 select-none text-center">
+            <p className="text-[13px] font-semibold text-white drop-shadow">{block.name}</p>
+            {hovered && (
+              <>
+                <p className="mt-1 text-[10px] leading-tight text-white/75">{block.description}</p>
+                <p className="mt-1 text-[10px] font-semibold text-white">Open →</p>
+              </>
+            )}
+          </div>
+        </Html>
       )}
     </group>
   );
@@ -339,59 +401,117 @@ function Bloodstream() {
     [],
   );
 
-  const cells = useRef<THREE.InstancedMesh>(null);
+  // vessel wall with an irregular, endothelial surface
+  const tube = useMemo(() => {
+    const geo = new THREE.TubeGeometry(curve, 200, 3.4, 28, false);
+    const pos = geo.attributes["position"] as THREE.BufferAttribute;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i);
+      const wobble =
+        Math.sin(v.z * 1.4 + v.x * 2.1) * 0.16 + Math.sin(v.z * 4.3 + v.y * 3.7) * 0.08;
+      const centre = curve.getPointAt(clamp01((Math.abs(v.z) - 44) / 54));
+      const dir = v.clone().sub(centre).setZ(0).normalize();
+      v.addScaledVector(dir, wobble);
+      pos.setXYZ(i, v.x, v.y, v.z);
+    }
+    geo.computeVertexNormals();
+    return geo;
+  }, [curve]);
+
+  const cellGeo = useMemo(() => makeRedCellGeometry(), []);
+  const red = useRef<THREE.InstancedMesh>(null);
+  const white = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const seeds = useMemo(
     () =>
-      Array.from({ length: 140 }, () => ({
+      Array.from({ length: 170 }, () => ({
         t: Math.random(),
         a: Math.random() * Math.PI * 2,
-        r: 0.4 + Math.random() * 2.1,
-        s: 0.12 + Math.random() * 0.2,
+        r: 0.3 + Math.random() * 2.3,
+        s: 0.16 + Math.random() * 0.16,
         v: 0.02 + Math.random() * 0.05,
+        spin: Math.random() * Math.PI,
+      })),
+    [],
+  );
+  const whiteSeeds = useMemo(
+    () =>
+      Array.from({ length: 14 }, () => ({
+        t: Math.random(),
+        a: Math.random() * Math.PI * 2,
+        r: 0.4 + Math.random() * 1.6,
+        s: 0.26 + Math.random() * 0.12,
+        v: 0.015 + Math.random() * 0.02,
       })),
     [],
   );
 
-  useFrame((_, delta) => {
-    const mesh = cells.current;
-    if (!mesh) return;
-    const visible = journeyState.progress > 0.5;
-    mesh.visible = visible;
+  useFrame(({ clock }, delta) => {
+    const visible = journeyState.progress > 0.48;
+    if (red.current) red.current.visible = visible;
+    if (white.current) white.current.visible = visible;
     if (!visible) return;
-    seeds.forEach((s, i) => {
-      s.t = (s.t + s.v * delta) % 1;
-      const pt = curve.getPointAt(s.t);
-      dummy.position.set(pt.x + Math.cos(s.a + s.t * 8) * s.r, pt.y + Math.sin(s.a + s.t * 8) * s.r, pt.z);
-      dummy.scale.setScalar(s.s);
-      dummy.rotation.set(s.t * 6, s.a, 0);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-    });
-    mesh.instanceMatrix.needsUpdate = true;
+
+    if (red.current) {
+      seeds.forEach((s, i) => {
+        s.t = (s.t + s.v * delta) % 1;
+        const pt = curve.getPointAt(s.t);
+        dummy.position.set(
+          pt.x + Math.cos(s.a + s.t * 8) * s.r,
+          pt.y + Math.sin(s.a + s.t * 8) * s.r,
+          pt.z,
+        );
+        dummy.scale.setScalar(s.s);
+        dummy.rotation.set(
+          Math.PI / 2 + Math.sin(clock.elapsedTime * 0.6 + s.spin) * 0.6,
+          s.a + clock.elapsedTime * 0.3,
+          s.spin,
+        );
+        dummy.updateMatrix();
+        red.current!.setMatrixAt(i, dummy.matrix);
+      });
+      red.current.instanceMatrix.needsUpdate = true;
+    }
+
+    if (white.current) {
+      whiteSeeds.forEach((s, i) => {
+        s.t = (s.t + s.v * delta) % 1;
+        const pt = curve.getPointAt(s.t);
+        dummy.position.set(pt.x + Math.cos(s.a) * s.r, pt.y + Math.sin(s.a) * s.r, pt.z);
+        dummy.scale.setScalar(s.s);
+        dummy.rotation.set(clock.elapsedTime * 0.4, s.a, 0);
+        dummy.updateMatrix();
+        white.current!.setMatrixAt(i, dummy.matrix);
+      });
+      white.current.instanceMatrix.needsUpdate = true;
+    }
   });
 
   return (
     <group>
-      <mesh>
-        <tubeGeometry args={[curve, 120, 3.4, 24, false]} />
+      <mesh geometry={tube}>
         <meshStandardMaterial
-          color="#5a0f22"
-          emissive="#b52243"
-          emissiveIntensity={0.35}
+          color="#6d1226"
+          emissive="#8e1b34"
+          emissiveIntensity={0.22}
           side={THREE.BackSide}
-          roughness={0.65}
-          transparent
-          opacity={0.92}
+          roughness={0.85}
+          metalness={0}
         />
       </mesh>
-      <instancedMesh ref={cells} args={[undefined, undefined, seeds.length]}>
-        <sphereGeometry args={[1, 10, 8]} />
-        <meshStandardMaterial color="#ff8aa0" emissive="#ff4d6d" emissiveIntensity={0.7} roughness={0.4} />
+      <instancedMesh ref={red} args={[cellGeo, undefined, seeds.length]}>
+        <meshStandardMaterial color="#c2283f" emissive="#7d1122" emissiveIntensity={0.25} roughness={0.45} />
       </instancedMesh>
+      <instancedMesh ref={white} args={[undefined, undefined, whiteSeeds.length]}>
+        <sphereGeometry args={[1, 18, 14]} />
+        <meshStandardMaterial color="#f4eef6" emissive="#cbd9ff" emissiveIntensity={0.2} roughness={0.6} />
+      </instancedMesh>
+      <pointLight position={[0, -3, -60]} color="#ff5a72" intensity={40} distance={30} />
+      <pointLight position={[0, -4, -88]} color="#ffffff" intensity={60} distance={34} />
       <mesh position={[0, -4, -99]}>
         <planeGeometry args={[26, 26]} />
-        <meshBasicMaterial color="#e9f6ff" transparent opacity={0.95} />
+        <meshBasicMaterial color="#eaf6ff" transparent opacity={0.95} />
       </mesh>
     </group>
   );
@@ -421,10 +541,10 @@ function Motes() {
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
       <pointsMaterial
-        size={0.05}
+        size={0.045}
         color="#68b6ff"
         transparent
-        opacity={0.5}
+        opacity={0.45}
         depthWrite={false}
         blending={THREE.AdditiveBlending}
       />
@@ -434,6 +554,69 @@ function Motes() {
 
 /* ------------------------------------------------------------------ root */
 
+function Scene() {
+  const body = useMemo(() => makeBodySegments(), []);
+  const skeleton = useMemo(() => makeSkeletonSegments(), []);
+
+  return (
+    <>
+      <color attach="background" args={["#03101f"]} />
+      <fog attach="fog" args={["#03101f", 9, 48]} />
+      <ambientLight intensity={0.35} />
+      <hemisphereLight args={["#bfe4ff", "#0a1c2e", 0.7]} />
+      <directionalLight position={[4, 6, 6]} intensity={1.4} color={CYAN} />
+      <directionalLight position={[-6, -2, -4]} intensity={0.7} color={BLUE} />
+      <spotLight position={[0, 6, -28]} angle={0.7} penumbra={0.9} intensity={90} color="#dff2ff" distance={40} />
+      <CameraRig />
+      <Motes />
+      <BodyFigure />
+      {/* skin → muscle → skeleton */}
+      <AnatomyLayer
+        segments={body}
+        z={-8}
+        from={0.12}
+        to={0.19}
+        maxOpacity={0.34}
+        color="#e8b090"
+        emissive="#ff9d6e"
+        roughness={0.75}
+        breathe={0.008}
+      />
+      <AnatomyLayer
+        segments={body}
+        z={-10.6}
+        from={0.18}
+        to={0.25}
+        maxOpacity={0.5}
+        color="#a52b32"
+        emissive="#ff4a48"
+        roughness={0.55}
+        scale={0.93}
+        breathe={0.018}
+      />
+      <AnatomyLayer
+        segments={skeleton}
+        z={-13.4}
+        from={0.24}
+        to={0.32}
+        maxOpacity={0.7}
+        color="#dfeeff"
+        emissive="#7fd0ff"
+        roughness={0.4}
+        metalness={0.15}
+        scale={0.96}
+      />
+      <Brain />
+      <Blocks />
+      <Bloodstream />
+      {!(globalThis as any).__noFX && (<EffectComposer enableNormalPass={false}>
+        <Bloom intensity={0.75} luminanceThreshold={0.35} luminanceSmoothing={0.5} mipmapBlur />
+        <Vignette eskil={false} offset={0.25} darkness={0.75} />
+      </EffectComposer>)}
+    </>
+  );
+}
+
 export default function Journey3D() {
   return (
     <Canvas
@@ -441,20 +624,7 @@ export default function Journey3D() {
       camera={{ position: [0, 0, 2], fov: 58, near: 0.1, far: 160 }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
     >
-      <color attach="background" args={["#03101f"]} />
-      <fog attach="fog" args={["#03101f", 8, 46]} />
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[4, 6, 6]} intensity={1.1} color={CYAN} />
-      <directionalLight position={[-6, -2, -4]} intensity={0.6} color={BLUE} />
-      <CameraRig />
-      <Motes />
-      <BodyFigure />
-      <LayerShell z={-8} color="#ffb38a" from={0.12} to={0.19} breathe={0.01} />
-      <LayerShell z={-11} color="#ff6b6b" from={0.18} to={0.25} breathe={0.02} />
-      <LayerShell z={-14} color="#7fd7ff" from={0.24} to={0.32} wire />
-      <Brain />
-      <Blocks />
-      <Bloodstream />
+      <Scene />
     </Canvas>
   );
 }
