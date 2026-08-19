@@ -88,18 +88,23 @@ export function JourneyOverlay({ progress }: Props) {
       </div>
 
       {/* ACT 3 — pipeline stations */}
-      <SideNote opacity={op(progress, 0.62, 0.68)} title="1 — You upload notes" text="PDF, DOCX, TXT or a photo." />
       <SideNote
-        opacity={op(progress, 0.67, 0.73)}
+        opacity={op(progress, 0.62, 0.67, 0.02)}
+        title="1 — You upload notes"
+        text="PDF, DOCX, TXT or a photo."
+      />
+      <SideNote
+        opacity={op(progress, 0.69, 0.73, 0.02)}
         title="2 — AI reads & understands"
         text="Powered by Llama-3.3 on Groq."
         right
       />
       <SideNote
-        opacity={op(progress, 0.72, 0.79)}
+        opacity={op(progress, 0.75, 0.8, 0.02)}
         title="3 — Graphics appear"
         text="Straight onto your Study Board."
       />
+
 
       {/* accessible equivalents for the 3D blocks */}
       <ul className="sr-only">
