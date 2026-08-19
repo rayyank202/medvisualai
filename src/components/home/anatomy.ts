@@ -121,69 +121,317 @@ export interface Segment {
   scale?: [number, number, number];
 }
 
-/** Anatomically-proportioned humanoid body, used for the skin and muscle layers. */
+/* ------------------------------------------------------------------ loft */
+
+export interface Station {
+  /** height along the local Y axis */
+  y: number;
+  /** half-width (X) at this station */
+  w: number;
+  /** half-depth (Z) at this station */
+  d: number;
+  /** lateral / front-back offset of the cross-section centre */
+  x?: number;
+  z?: number;
+  /** superellipse exponent: 2 = ellipse, >2 = squarer (torso, foot) */
+  n?: number;
+}
+
+/**
+ * Lofts a smooth, continuous surface through a stack of elliptical
+ * cross-sections — the same way real anatomical scans are reconstructed from
+ * slices. Produces one closed organic volume, not a pile of capsules.
+ */
+export function loftGeometry(
+  stations: Station[],
+  radial = 48,
+  subdiv = 4,
+): THREE.BufferGeometry {
+  // Catmull-Rom resample each channel so the silhouette is smooth.
+  const chan = (key: "y" | "w" | "d" | "x" | "z" | "n", def = 0) =>
+    new THREE.CatmullRomCurve3(
+      stations.map((s, i) => new THREE.Vector3(i, (s[key] ?? def) as number, 0)),
+      false,
+      "catmullrom",
+      0.5,
+    );
+  const cy = chan("y");
+  const cw = chan("w");
+  const cd = chan("d");
+  const cx = chan("x");
+  const cz = chan("z");
+  const cn = chan("n", 2);
+
+  const rings = (stations.length - 1) * subdiv + 1;
+  const pos: number[] = [];
+  const idx: number[] = [];
+  const rows: { y: number; w: number; d: number; x: number; z: number; n: number }[] = [];
+
+  for (let r = 0; r < rings; r++) {
+    const t = r / (rings - 1);
+    rows.push({
+      y: cy.getPoint(t).y,
+      w: Math.max(0.001, cw.getPoint(t).y),
+      d: Math.max(0.001, cd.getPoint(t).y),
+      x: cx.getPoint(t).y,
+      z: cz.getPoint(t).y,
+      n: Math.max(1.6, cn.getPoint(t).y),
+    });
+  }
+
+  const sup = (c: number, e: number) =>
+    Math.sign(c) * Math.pow(Math.abs(c), 2 / e);
+
+  for (const row of rows) {
+    for (let a = 0; a < radial; a++) {
+      const th = (a / radial) * Math.PI * 2;
+      pos.push(
+        row.x + row.w * sup(Math.cos(th), row.n),
+        row.y,
+        row.z + row.d * sup(Math.sin(th), row.n),
+      );
+    }
+  }
+  for (let r = 0; r < rings - 1; r++) {
+    for (let a = 0; a < radial; a++) {
+      const a2 = (a + 1) % radial;
+      const i0 = r * radial + a;
+      const i1 = r * radial + a2;
+      const i2 = (r + 1) * radial + a;
+      const i3 = (r + 1) * radial + a2;
+      idx.push(i0, i2, i1, i1, i2, i3);
+    }
+  }
+  // caps
+  const first = rows[0]!;
+  const last = rows[rows.length - 1]!;
+  const bottomC = pos.length / 3;
+  pos.push(first.x, first.y - first.w * 0.35, first.z);
+  const topC = pos.length / 3;
+  pos.push(last.x, last.y + last.w * 0.35, last.z);
+  for (let a = 0; a < radial; a++) {
+    const a2 = (a + 1) % radial;
+    idx.push(bottomC, a, a2);
+    idx.push(topC, (rings - 1) * radial + a2, (rings - 1) * radial + a);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** Skull-shaped head: cranium, brow, nose bridge, tapered jaw and chin. */
+export function makeHeadGeometry(radius = 0.6) {
+  const geo = new THREE.SphereGeometry(radius, 64, 48);
+  const pos = geo.attributes["position"] as THREE.BufferAttribute;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    const n = v.clone().normalize();
+    v.x *= 0.8;
+    v.z *= 0.92;
+    v.y *= 1.14;
+    const ny = n.y;
+    if (ny < 0) {
+      // jaw + chin taper
+      const t = Math.min(1, -ny / 0.9);
+      v.x *= 1 - 0.42 * t * t;
+      v.z *= 1 - 0.2 * t * t;
+      v.y *= 1 + 0.1 * t;
+      if (n.z > 0.35) v.z += 0.05 * t * (n.z - 0.35);
+    } else {
+      // occiput fullness, flatter forehead
+      if (n.z < -0.2) v.z -= 0.05 * (-n.z - 0.2);
+      if (n.z > 0.5 && ny > 0.25) v.z -= 0.035 * (n.z - 0.5);
+    }
+    // nose ridge
+    const nose = Math.exp(-((n.x * 6) ** 2)) * Math.exp(-(((ny + 0.02) * 4) ** 2));
+    if (n.z > 0.6) v.z += nose * 0.09;
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * Anatomically-proportioned human body built from lofted cross-sections:
+ * torso with real shoulder / rib / waist / hip contours, tapered limbs with
+ * deltoid, biceps, calf bellies, plus hands, feet and a sculpted head.
+ */
 export function makeBodySegments(): Segment[] {
-  const cap = (r: number, l: number) => new THREE.CapsuleGeometry(r, l, 10, 24);
+  const seg: Segment[] = [];
+
+  // ---- torso: pelvis → neck, sliced like a CT stack
+  seg.push({
+    geometry: loftGeometry(
+      [
+        { y: -0.62, w: 0.60, d: 0.34, n: 2.4 },
+        { y: -0.30, w: 0.70, d: 0.38, n: 2.5 },
+        { y: 0.02, w: 0.74, d: 0.40, z: -0.02, n: 2.5 },
+        { y: 0.34, w: 0.66, d: 0.36, n: 2.4 },
+        { y: 0.66, w: 0.58, d: 0.32, n: 2.3 },
+        { y: 1.00, w: 0.64, d: 0.36, n: 2.3 },
+        { y: 1.36, w: 0.76, d: 0.41, z: 0.01, n: 2.3 },
+        { y: 1.70, w: 0.86, d: 0.42, n: 2.2 },
+        { y: 2.02, w: 0.95, d: 0.40, n: 2.2 },
+        { y: 2.24, w: 0.78, d: 0.36, n: 2.1 },
+        { y: 2.40, w: 0.42, d: 0.30, z: -0.02, n: 2 },
+        { y: 2.62, w: 0.24, d: 0.24, z: -0.03, n: 2 },
+        { y: 2.92, w: 0.235, d: 0.235, z: -0.02, n: 2 },
+      ],
+      56,
+      5,
+    ),
+    position: [0, 0, 0],
+  });
+
+  // ---- head
+  seg.push({ geometry: makeHeadGeometry(0.52), position: [0, 3.28, 0.02] });
+
+  for (const side of [-1, 1]) {
+    // upper arm: deltoid cap → elbow
+    seg.push({
+      geometry: loftGeometry(
+        [
+          { y: 0.0, w: 0.21, d: 0.20 },
+          { y: -0.18, w: 0.20, d: 0.19 },
+          { y: -0.5, w: 0.165, d: 0.16 },
+          { y: -0.85, w: 0.13, d: 0.13 },
+          { y: -1.05, w: 0.125, d: 0.125 },
+        ],
+        32,
+        4,
+      ),
+      position: [side * 0.86, 2.12, 0],
+      rotation: [0, 0, side * 0.14],
+    });
+    // forearm → wrist
+    seg.push({
+      geometry: loftGeometry(
+        [
+          { y: 0.0, w: 0.135, d: 0.13 },
+          { y: -0.22, w: 0.14, d: 0.132 },
+          { y: -0.6, w: 0.10, d: 0.098 },
+          { y: -0.9, w: 0.075, d: 0.062 },
+        ],
+        32,
+        4,
+      ),
+      position: [side * 1.06, 1.03, 0],
+      rotation: [0, 0, side * 0.08],
+    });
+    // hand (flattened palm + tapered fingers volume)
+    seg.push({
+      geometry: loftGeometry(
+        [
+          { y: 0.0, w: 0.075, d: 0.05, n: 2.4 },
+          { y: -0.1, w: 0.1, d: 0.045, n: 2.6 },
+          { y: -0.26, w: 0.095, d: 0.04, n: 2.6 },
+          { y: -0.42, w: 0.06, d: 0.03, n: 2.4 },
+        ],
+        28,
+        4,
+      ),
+      position: [side * 1.14, 0.12, 0],
+      rotation: [0, 0, side * 0.06],
+    });
+    // thigh with glute top and knee
+    seg.push({
+      geometry: loftGeometry(
+        [
+          { y: 0.0, w: 0.33, d: 0.32, z: -0.03 },
+          { y: -0.3, w: 0.30, d: 0.30 },
+          { y: -0.8, w: 0.24, d: 0.24 },
+          { y: -1.25, w: 0.185, d: 0.19 },
+          { y: -1.45, w: 0.175, d: 0.18 },
+        ],
+        36,
+        4,
+      ),
+      position: [side * 0.36, -0.42, 0],
+    });
+    // shank with calf belly → ankle
+    seg.push({
+      geometry: loftGeometry(
+        [
+          { y: 0.0, w: 0.17, d: 0.175 },
+          { y: -0.25, w: 0.185, d: 0.2, z: -0.02 },
+          { y: -0.7, w: 0.13, d: 0.135 },
+          { y: -1.1, w: 0.085, d: 0.09 },
+          { y: -1.3, w: 0.075, d: 0.08 },
+        ],
+        32,
+        4,
+      ),
+      position: [side * 0.4, -1.9, 0],
+    });
+    // foot: lofted along Z (heel → toes)
+    seg.push({
+      geometry: loftGeometry(
+        [
+          { y: 0.0, w: 0.085, d: 0.09, n: 2.6 },
+          { y: 0.14, w: 0.1, d: 0.085, n: 2.8 },
+          { y: 0.36, w: 0.105, d: 0.07, n: 3 },
+          { y: 0.5, w: 0.085, d: 0.05, n: 2.6 },
+        ],
+        26,
+        4,
+      ),
+      position: [side * 0.4, -3.28, -0.14],
+      rotation: [Math.PI / 2, 0, 0],
+    });
+  }
+
+  return seg;
+}
+
+
+/** Skull, spine, ribcage and pelvis for the x-ray layer. */
+export function makeSkeletonSegments(): Segment[] {
   const seg: Segment[] = [
-    { geometry: new THREE.SphereGeometry(0.62, 32, 24), position: [0, 3.15, 0], scale: [0.85, 1.12, 0.95] },
-    { geometry: cap(0.2, 0.32), position: [0, 2.5, 0] }, // neck
-    { geometry: cap(0.92, 1.05), position: [0, 1.62, 0], scale: [1, 1, 0.62] }, // thorax
-    { geometry: cap(0.74, 0.5), position: [0, 0.62, 0], scale: [1, 1, 0.6] }, // abdomen
-    { geometry: cap(0.82, 0.22), position: [0, 0.08, 0], scale: [1, 1, 0.62] }, // pelvis
+    { geometry: makeHeadGeometry(0.55), position: [0, 3.42, 0.02] },
+    { geometry: new THREE.BoxGeometry(0.4, 0.24, 0.42), position: [0, 3.06, 0.2] }, // mandible
   ];
+  // spine: cervical → sacrum
+  for (let i = 0; i < 24; i++) {
+    const y = 2.72 - i * 0.135;
+    const s = y > 2.2 ? 0.72 : 1;
+    seg.push({
+      geometry: new THREE.BoxGeometry(0.19 * s, 0.09, 0.19 * s),
+      position: [0, y, -0.14 + Math.sin(i * 0.3) * 0.07],
+    });
+  }
+  // ribs
+  for (let i = 0; i < 10; i++) {
+    const y = 2.12 - i * 0.185;
+    const r = 0.5 + Math.sin((i / 10) * Math.PI) * 0.34;
+    seg.push({
+      geometry: new THREE.TorusGeometry(r, 0.033, 8, 40, Math.PI * 1.15),
+      position: [0, y, -0.1],
+      rotation: [Math.PI / 2 + 0.16, 0, -Math.PI * 0.58],
+      scale: [1, 0.6, 1],
+    });
+  }
+  // sternum + pelvis
+  seg.push({ geometry: new THREE.BoxGeometry(0.15, 0.85, 0.06), position: [0, 1.8, 0.4] });
+  seg.push({
+    geometry: new THREE.TorusGeometry(0.5, 0.11, 10, 28, Math.PI * 1.2),
+    position: [0, -0.18, -0.04],
+    rotation: [Math.PI / 2, 0, Math.PI * 0.9],
+    scale: [1, 0.7, 1],
+  });
+  // clavicles + long bones
   for (const side of [-1, 1]) {
     seg.push(
-      { geometry: cap(0.27, 0.72), position: [side * 1.02, 1.82, 0], rotation: [0, 0, side * 0.22] }, // upper arm
-      { geometry: cap(0.21, 0.68), position: [side * 1.32, 1.02, 0], rotation: [0, 0, side * 0.12] }, // forearm
-      { geometry: new THREE.SphereGeometry(0.19, 20, 16), position: [side * 1.44, 0.5, 0], scale: [0.7, 1.1, 0.4] }, // hand
-      { geometry: cap(0.34, 0.95), position: [side * 0.42, -0.85, 0], rotation: [0, 0, side * 0.04] }, // thigh
-      { geometry: cap(0.25, 0.9), position: [side * 0.45, -2.05, 0] }, // shank
-      { geometry: new THREE.BoxGeometry(0.32, 0.18, 0.6), position: [side * 0.45, -2.68, 0.14] }, // foot
+      { geometry: new THREE.CylinderGeometry(0.035, 0.035, 0.62, 10), position: [side * 0.34, 2.24, 0.24], rotation: [0, 0, Math.PI / 2 - side * 0.16] },
+      { geometry: new THREE.CylinderGeometry(0.085, 0.075, 1.5, 12), position: [side * 0.36, -1.15, 0] }, // femur
+      { geometry: new THREE.CylinderGeometry(0.07, 0.06, 1.35, 12), position: [side * 0.4, -2.55, 0] }, // tibia
+      { geometry: new THREE.CylinderGeometry(0.065, 0.055, 1.05, 12), position: [side * 0.98, 1.55, 0], rotation: [0, 0, side * 0.14] }, // humerus
+      { geometry: new THREE.CylinderGeometry(0.05, 0.042, 0.95, 12), position: [side * 1.16, 0.56, 0], rotation: [0, 0, side * 0.08] }, // radius/ulna
     );
   }
   return seg;
 }
 
-/** Skull, spine, ribcage and pelvis for the x-ray layer. */
-export function makeSkeletonSegments(): Segment[] {
-  const seg: Segment[] = [
-    { geometry: new THREE.SphereGeometry(0.56, 28, 22), position: [0, 3.18, 0], scale: [0.88, 1.1, 1] },
-    { geometry: new THREE.BoxGeometry(0.52, 0.3, 0.5), position: [0, 2.72, 0.14] }, // jaw
-  ];
-  // spine
-  for (let i = 0; i < 20; i++) {
-    const y = 2.42 - i * 0.13;
-    seg.push({
-      geometry: new THREE.BoxGeometry(0.19, 0.09, 0.19),
-      position: [0, y, -0.16 + Math.sin(i * 0.32) * 0.06],
-    });
-  }
-  // ribs
-  for (let i = 0; i < 9; i++) {
-    const y = 2.24 - i * 0.19;
-    const r = 0.52 + Math.sin((i / 9) * Math.PI) * 0.36;
-    seg.push({
-      geometry: new THREE.TorusGeometry(r, 0.035, 8, 40, Math.PI * 1.15),
-      position: [0, y, -0.12],
-      rotation: [Math.PI / 2 + 0.16, 0, -Math.PI * 0.58],
-      scale: [1, 0.62, 1],
-    });
-  }
-  // sternum + pelvis + long bones
-  seg.push({ geometry: new THREE.BoxGeometry(0.16, 0.9, 0.07), position: [0, 1.86, 0.42] });
-  seg.push({
-    geometry: new THREE.TorusGeometry(0.52, 0.11, 10, 28, Math.PI * 1.2),
-    position: [0, 0.05, -0.05],
-    rotation: [Math.PI / 2, 0, Math.PI * 0.9],
-    scale: [1, 0.7, 1],
-  });
-  for (const side of [-1, 1]) {
-    seg.push(
-      { geometry: new THREE.CylinderGeometry(0.09, 0.08, 1.5, 12), position: [side * 0.42, -0.85, 0] },
-      { geometry: new THREE.CylinderGeometry(0.075, 0.065, 1.4, 12), position: [side * 0.45, -2.05, 0] },
-      { geometry: new THREE.CylinderGeometry(0.07, 0.06, 1.25, 12), position: [side * 1.02, 1.82, 0], rotation: [0, 0, side * 0.22] },
-      { geometry: new THREE.CylinderGeometry(0.055, 0.05, 1.1, 12), position: [side * 1.32, 1.02, 0], rotation: [0, 0, side * 0.12] },
-    );
-  }
-  return seg;
-}
