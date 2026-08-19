@@ -54,14 +54,24 @@ export function JourneyOverlay({ progress }: Props) {
         </div>
       </div>
 
-      {/* ACT 1 — descent */}
+      {/* ACT 1 — descent (bands are disjoint so notes never overlap) */}
       <SideNote
-        opacity={op(progress, 0.13, 0.21)}
+        opacity={op(progress, 0.12, 0.18, 0.02)}
         title="Skin & fascia"
         text="Every layer of the body, understood visually."
       />
-      <SideNote opacity={op(progress, 0.2, 0.27)} title="Muscle" text="Fibers, origins, insertions — in motion." right />
-      <SideNote opacity={op(progress, 0.26, 0.32)} title="Skeleton" text="X-ray clarity, no dissection required." />
+      <SideNote
+        opacity={op(progress, 0.2, 0.25, 0.02)}
+        title="Muscle"
+        text="Fibers, origins, insertions — in motion."
+        right
+      />
+      <SideNote
+        opacity={op(progress, 0.27, 0.32, 0.02)}
+        title="Skeleton"
+        text="X-ray clarity, no dissection required."
+      />
+
 
       {/* ACT 2 — brain */}
       <div
