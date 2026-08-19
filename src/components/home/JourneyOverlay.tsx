@@ -140,11 +140,13 @@ function SideNote({
   text: string;
   right?: boolean;
 }) {
+  if (opacity <= 0) return null;
   return (
     <div
-      className={`absolute top-1/2 max-w-xs -translate-y-1/2 px-6 ${right ? "right-0 text-right" : "left-0"}`}
+      className={`absolute top-1/2 w-full max-w-[22rem] -translate-y-1/2 px-6 sm:max-w-xs ${right ? "right-0 sm:text-right" : "left-0"}`}
       style={{ opacity }}
     >
+
       <p className="text-xs font-semibold uppercase tracking-[0.25em] text-primary-glow">{title}</p>
       <p className="mt-2 text-lg font-medium leading-snug">{text}</p>
     </div>
