@@ -279,7 +279,7 @@ export function makeBodySegments(): Segment[] {
         { y: 2.24, w: 0.78, d: 0.36, n: 2.1 },
         { y: 2.40, w: 0.42, d: 0.30, z: -0.02, n: 2 },
         { y: 2.62, w: 0.24, d: 0.24, z: -0.03, n: 2 },
-        { y: 2.86, w: 0.23, d: 0.23, z: -0.02, n: 2 },
+        { y: 2.92, w: 0.235, d: 0.235, z: -0.02, n: 2 },
       ],
       56,
       5,
@@ -288,7 +288,7 @@ export function makeBodySegments(): Segment[] {
   });
 
   // ---- head
-  seg.push({ geometry: makeHeadGeometry(0.6), position: [0, 3.42, 0.02] });
+  seg.push({ geometry: makeHeadGeometry(0.52), position: [0, 3.28, 0.02] });
 
   for (const side of [-1, 1]) {
     // upper arm: deltoid cap → elbow
@@ -304,7 +304,7 @@ export function makeBodySegments(): Segment[] {
         32,
         4,
       ),
-      position: [side * 0.92, 2.06, 0],
+      position: [side * 0.86, 2.12, 0],
       rotation: [0, 0, side * 0.14],
     });
     // forearm → wrist
@@ -319,7 +319,7 @@ export function makeBodySegments(): Segment[] {
         32,
         4,
       ),
-      position: [side * 1.12, 1.0, 0],
+      position: [side * 1.06, 1.03, 0],
       rotation: [0, 0, side * 0.08],
     });
     // hand (flattened palm + tapered fingers volume)
@@ -334,7 +334,7 @@ export function makeBodySegments(): Segment[] {
         28,
         4,
       ),
-      position: [side * 1.2, 0.08, 0],
+      position: [side * 1.14, 0.12, 0],
       rotation: [0, 0, side * 0.06],
     });
     // thigh with glute top and knee
