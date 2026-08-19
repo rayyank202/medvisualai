@@ -391,43 +391,47 @@ export function makeBodySegments(): Segment[] {
 /** Skull, spine, ribcage and pelvis for the x-ray layer. */
 export function makeSkeletonSegments(): Segment[] {
   const seg: Segment[] = [
-    { geometry: new THREE.SphereGeometry(0.56, 28, 22), position: [0, 3.18, 0], scale: [0.88, 1.1, 1] },
-    { geometry: new THREE.BoxGeometry(0.52, 0.3, 0.5), position: [0, 2.72, 0.14] }, // jaw
+    { geometry: makeHeadGeometry(0.55), position: [0, 3.42, 0.02] },
+    { geometry: new THREE.BoxGeometry(0.4, 0.24, 0.42), position: [0, 3.06, 0.2] }, // mandible
   ];
-  // spine
-  for (let i = 0; i < 20; i++) {
-    const y = 2.42 - i * 0.13;
+  // spine: cervical → sacrum
+  for (let i = 0; i < 24; i++) {
+    const y = 2.72 - i * 0.135;
+    const s = y > 2.2 ? 0.72 : 1;
     seg.push({
-      geometry: new THREE.BoxGeometry(0.19, 0.09, 0.19),
-      position: [0, y, -0.16 + Math.sin(i * 0.32) * 0.06],
+      geometry: new THREE.BoxGeometry(0.19 * s, 0.09, 0.19 * s),
+      position: [0, y, -0.14 + Math.sin(i * 0.3) * 0.07],
     });
   }
   // ribs
-  for (let i = 0; i < 9; i++) {
-    const y = 2.24 - i * 0.19;
-    const r = 0.52 + Math.sin((i / 9) * Math.PI) * 0.36;
+  for (let i = 0; i < 10; i++) {
+    const y = 2.12 - i * 0.185;
+    const r = 0.5 + Math.sin((i / 10) * Math.PI) * 0.34;
     seg.push({
-      geometry: new THREE.TorusGeometry(r, 0.035, 8, 40, Math.PI * 1.15),
-      position: [0, y, -0.12],
+      geometry: new THREE.TorusGeometry(r, 0.033, 8, 40, Math.PI * 1.15),
+      position: [0, y, -0.1],
       rotation: [Math.PI / 2 + 0.16, 0, -Math.PI * 0.58],
-      scale: [1, 0.62, 1],
+      scale: [1, 0.6, 1],
     });
   }
-  // sternum + pelvis + long bones
-  seg.push({ geometry: new THREE.BoxGeometry(0.16, 0.9, 0.07), position: [0, 1.86, 0.42] });
+  // sternum + pelvis
+  seg.push({ geometry: new THREE.BoxGeometry(0.15, 0.85, 0.06), position: [0, 1.8, 0.4] });
   seg.push({
-    geometry: new THREE.TorusGeometry(0.52, 0.11, 10, 28, Math.PI * 1.2),
-    position: [0, 0.05, -0.05],
+    geometry: new THREE.TorusGeometry(0.5, 0.11, 10, 28, Math.PI * 1.2),
+    position: [0, -0.18, -0.04],
     rotation: [Math.PI / 2, 0, Math.PI * 0.9],
     scale: [1, 0.7, 1],
   });
+  // clavicles + long bones
   for (const side of [-1, 1]) {
     seg.push(
-      { geometry: new THREE.CylinderGeometry(0.09, 0.08, 1.5, 12), position: [side * 0.42, -0.85, 0] },
-      { geometry: new THREE.CylinderGeometry(0.075, 0.065, 1.4, 12), position: [side * 0.45, -2.05, 0] },
-      { geometry: new THREE.CylinderGeometry(0.07, 0.06, 1.25, 12), position: [side * 1.02, 1.82, 0], rotation: [0, 0, side * 0.22] },
-      { geometry: new THREE.CylinderGeometry(0.055, 0.05, 1.1, 12), position: [side * 1.32, 1.02, 0], rotation: [0, 0, side * 0.12] },
+      { geometry: new THREE.CylinderGeometry(0.035, 0.035, 0.62, 10), position: [side * 0.34, 2.24, 0.24], rotation: [0, 0, Math.PI / 2 - side * 0.16] },
+      { geometry: new THREE.CylinderGeometry(0.085, 0.075, 1.5, 12), position: [side * 0.36, -1.15, 0] }, // femur
+      { geometry: new THREE.CylinderGeometry(0.07, 0.06, 1.35, 12), position: [side * 0.4, -2.55, 0] }, // tibia
+      { geometry: new THREE.CylinderGeometry(0.065, 0.055, 1.05, 12), position: [side * 0.98, 1.55, 0], rotation: [0, 0, side * 0.14] }, // humerus
+      { geometry: new THREE.CylinderGeometry(0.05, 0.042, 0.95, 12), position: [side * 1.16, 0.56, 0], rotation: [0, 0, side * 0.08] }, // radius/ulna
     );
   }
   return seg;
 }
+
