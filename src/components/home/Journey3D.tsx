@@ -99,7 +99,7 @@ function AnatomyLayer({
   breathe = 0,
   wireframe = false,
 }: {
-  segments: Segment[];
+  segments?: Segment[];
   z: number;
   from: number;
   to: number;
