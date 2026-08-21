@@ -8,13 +8,13 @@ import { GRAPHIC_BLOCKS, preselectGraphic, type GraphicBlock } from "@/lib/graph
 import { openChatWidget } from "@/components/site/ChatWidget";
 import { journeyState, cameraAt, band, clamp01 } from "./journey-state";
 import {
-  makeBodySegments,
   makeCerebellumGeometry,
   makeCortexGeometry,
   makeRedCellGeometry,
   makeSkeletonSegments,
   type Segment,
 } from "./anatomy";
+import { HumanModel } from "./HumanModel";
 
 const BRAIN_Z = -33;
 const BLUE = new THREE.Color("#0A4FFF");
@@ -45,63 +45,40 @@ function CameraRig() {
 
 /** Hero figure: a translucent, glowing anatomical body (skin shell + inner core). */
 function BodyFigure() {
-  const segments = useMemo(() => makeBodySegments(), []);
   const group = useRef<THREE.Group>(null);
-  const skin = useRef<THREE.MeshPhysicalMaterial>(null);
-  const core = useRef<THREE.MeshBasicMaterial>(null);
+  const skin = useMemo(
+    () =>
+      new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color("#bfe6ff"),
+        emissive: new THREE.Color("#0a4fff"),
+        emissiveIntensity: 0.35,
+        transparent: true,
+        opacity: 0.32,
+        roughness: 0.22,
+        metalness: 0,
+        transmission: 0.6,
+        thickness: 0.9,
+        clearcoat: 1,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    [],
+  );
 
   useFrame(({ clock }) => {
     const p = journeyState.progress;
     const g = group.current;
     if (g) {
       g.rotation.y = Math.sin(clock.elapsedTime * 0.16) * 0.22 + journeyState.mouseX * 0.2;
-      const breathe = 1 + Math.sin(clock.elapsedTime * 0.9) * 0.008;
-      g.scale.setScalar((1 + band(p, 0.1, 0.3) * 1.4) * breathe);
+      g.scale.setScalar(1 + band(p, 0.1, 0.3) * 1.4);
       g.visible = p < 0.24;
     }
-    const fade = 1 - clamp01((p - 0.13) / 0.1);
-    if (skin.current) skin.current.opacity = 0.3 * fade;
-    if (core.current) core.current.opacity = 0.18 * fade;
+    skin.opacity = 0.32 * (1 - clamp01((p - 0.13) / 0.1));
   });
 
   return (
     <group ref={group} position={[0, -0.3, -8]}>
-      {segments.map((s, i) => (
-        <group
-          key={i}
-          position={s.position}
-          rotation={s.rotation ?? [0, 0, 0]}
-          scale={s.scale ?? [1, 1, 1]}
-        >
-          <mesh geometry={s.geometry}>
-            <meshPhysicalMaterial
-              ref={i === 0 ? skin : null}
-              color="#bfe6ff"
-              emissive="#0a4fff"
-              emissiveIntensity={0.35}
-              transparent
-              opacity={0.3}
-              roughness={0.22}
-              metalness={0}
-              transmission={0.65}
-              thickness={0.9}
-              clearcoat={1}
-              depthWrite={false}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
-          <mesh geometry={s.geometry} scale={0.9}>
-            <meshBasicMaterial
-              ref={i === 0 ? core : null}
-              color="#4fd8ff"
-              transparent
-              opacity={0.18}
-              depthWrite={false}
-              blending={THREE.AdditiveBlending}
-            />
-          </mesh>
-        </group>
-      ))}
+      <HumanModel material={skin} />
     </group>
   );
 }
@@ -122,7 +99,7 @@ function AnatomyLayer({
   breathe = 0,
   wireframe = false,
 }: {
-  segments: Segment[];
+  segments?: Segment[];
   z: number;
   from: number;
   to: number;
@@ -167,16 +144,18 @@ function AnatomyLayer({
 
   return (
     <group ref={group} position={[0, -0.2, z]}>
-      {segments.map((s, i) => (
-        <mesh
-          key={i}
-          geometry={s.geometry}
-          material={material}
-          position={s.position}
-          rotation={s.rotation ?? [0, 0, 0]}
-          scale={s.scale ?? [1, 1, 1]}
-        />
-      ))}
+      {segments
+        ? segments.map((s, i) => (
+            <mesh
+              key={i}
+              geometry={s.geometry}
+              material={material}
+              position={s.position}
+              rotation={s.rotation ?? [0, 0, 0]}
+              scale={s.scale ?? [1, 1, 1]}
+            />
+          ))
+        : <HumanModel material={material} />}
     </group>
   );
 }
@@ -554,7 +533,6 @@ function Motes() {
 /* ------------------------------------------------------------------ root */
 
 function Scene() {
-  const body = useMemo(() => makeBodySegments(), []);
   const skeleton = useMemo(() => makeSkeletonSegments(), []);
 
   return (
@@ -571,7 +549,6 @@ function Scene() {
       <BodyFigure />
       {/* skin → muscle → skeleton */}
       <AnatomyLayer
-        segments={body}
         z={-8}
         from={0.12}
         to={0.19}
@@ -582,7 +559,6 @@ function Scene() {
         breathe={0.008}
       />
       <AnatomyLayer
-        segments={body}
         z={-10.6}
         from={0.18}
         to={0.25}
