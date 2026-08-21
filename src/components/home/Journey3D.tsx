@@ -144,16 +144,18 @@ function AnatomyLayer({
 
   return (
     <group ref={group} position={[0, -0.2, z]}>
-      {segments.map((s, i) => (
-        <mesh
-          key={i}
-          geometry={s.geometry}
-          material={material}
-          position={s.position}
-          rotation={s.rotation ?? [0, 0, 0]}
-          scale={s.scale ?? [1, 1, 1]}
-        />
-      ))}
+      {segments
+        ? segments.map((s, i) => (
+            <mesh
+              key={i}
+              geometry={s.geometry}
+              material={material}
+              position={s.position}
+              rotation={s.rotation ?? [0, 0, 0]}
+              scale={s.scale ?? [1, 1, 1]}
+            />
+          ))
+        : <HumanModel material={material} />}
     </group>
   );
 }
