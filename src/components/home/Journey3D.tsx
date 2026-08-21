@@ -8,13 +8,13 @@ import { GRAPHIC_BLOCKS, preselectGraphic, type GraphicBlock } from "@/lib/graph
 import { openChatWidget } from "@/components/site/ChatWidget";
 import { journeyState, cameraAt, band, clamp01 } from "./journey-state";
 import {
-  makeBodySegments,
   makeCerebellumGeometry,
   makeCortexGeometry,
   makeRedCellGeometry,
   makeSkeletonSegments,
   type Segment,
 } from "./anatomy";
+import { HumanModel } from "./HumanModel";
 
 const BRAIN_Z = -33;
 const BLUE = new THREE.Color("#0A4FFF");
