@@ -533,7 +533,6 @@ function Motes() {
 /* ------------------------------------------------------------------ root */
 
 function Scene() {
-  const body = useMemo(() => makeBodySegments(), []);
   const skeleton = useMemo(() => makeSkeletonSegments(), []);
 
   return (
@@ -550,7 +549,6 @@ function Scene() {
       <BodyFigure />
       {/* skin → muscle → skeleton */}
       <AnatomyLayer
-        segments={body}
         z={-8}
         from={0.12}
         to={0.19}
@@ -561,7 +559,6 @@ function Scene() {
         breathe={0.008}
       />
       <AnatomyLayer
-        segments={body}
         z={-10.6}
         from={0.18}
         to={0.25}
