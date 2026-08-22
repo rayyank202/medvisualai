@@ -43,27 +43,13 @@ function CameraRig() {
 
 /* ------------------------------------------------------- act 0/1: figure */
 
-/** Hero figure: a translucent, glowing anatomical body (skin shell + inner core). */
+/** Hero figure: the real textured human skin with a soft medical sheen. */
 function BodyFigure() {
   const group = useRef<THREE.Group>(null);
-  const skin = useMemo(
-    () =>
-      new THREE.MeshPhysicalMaterial({
-        color: new THREE.Color("#bfe6ff"),
-        emissive: new THREE.Color("#0a4fff"),
-        emissiveIntensity: 0.35,
-        transparent: true,
-        opacity: 0.32,
-        roughness: 0.22,
-        metalness: 0,
-        transmission: 0.6,
-        thickness: 0.9,
-        clearcoat: 1,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      }),
-    [],
-  );
+  const mats = useRef<THREE.MeshPhysicalMaterial[]>([]);
+  const onMaterials = useCallback((m: THREE.MeshPhysicalMaterial[]) => {
+    mats.current = m;
+  }, []);
 
   useFrame(({ clock }) => {
     const p = journeyState.progress;
@@ -73,15 +59,17 @@ function BodyFigure() {
       g.scale.setScalar(1 + band(p, 0.1, 0.3) * 1.4);
       g.visible = p < 0.24;
     }
-    skin.opacity = 0.32 * (1 - clamp01((p - 0.13) / 0.1));
+    const o = 1 - clamp01((p - 0.11) / 0.1);
+    for (const m of mats.current) m.opacity = o;
   });
 
   return (
     <group ref={group} position={[0, -0.3, -8]}>
-      <HumanModel material={skin} />
+      <HumanModel skin onMaterials={onMaterials} />
     </group>
   );
 }
+
 
 
 /** A group of anatomical segments that fades in and out across a scroll band. */
