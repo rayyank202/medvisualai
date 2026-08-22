@@ -59,12 +59,11 @@ export function HumanModel({
         const src = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as
           | THREE.MeshStandardMaterial
           | undefined;
-        const map = src?.map ?? null;
-        if (map) map.colorSpace = THREE.SRGBColorSpace;
+        // The source model is clothed — drop its albedo so the figure reads as
+        // bare skin, keeping only surface detail from the normal map.
         const m = new THREE.MeshPhysicalMaterial({
-          map,
           normalMap: src?.normalMap ?? null,
-          color: map ? new THREE.Color("#ffffff") : new THREE.Color("#e0ac8b"),
+          color: new THREE.Color("#d9a184"),
           // subsurface-ish: soft sheen + a little translucency, like living skin
           roughness: 0.62,
           metalness: 0,
