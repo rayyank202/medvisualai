@@ -550,11 +550,12 @@ function Scene() {
         z={-8}
         from={0.12}
         to={0.19}
-        maxOpacity={0.34}
+        maxOpacity={0.85}
         color="#e8b090"
         emissive="#ff9d6e"
         roughness={0.75}
         breathe={0.008}
+        realSkin
       />
       <AnatomyLayer
         z={-10.6}
