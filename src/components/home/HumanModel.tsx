@@ -73,7 +73,6 @@ export function HumanModel({
           sheen: 0.6,
           sheenRoughness: 0.8,
           sheenColor: new THREE.Color("#ff9d7a"),
-          transmission: 0.08,
           thickness: 0.6,
           attenuationColor: new THREE.Color("#c2543c"),
           attenuationDistance: 1.4,
