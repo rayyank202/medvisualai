@@ -14,7 +14,7 @@ import {
   makeSkeletonSegments,
   type Segment,
 } from "./anatomy";
-import { HumanModel } from "./HumanModel";
+import { AnatomyModel, type AnatomyKind } from "./AnatomyModel";
 
 const BRAIN_Z = -33;
 const BLUE = new THREE.Color("#0A4FFF");
