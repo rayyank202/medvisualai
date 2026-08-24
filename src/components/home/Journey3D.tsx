@@ -1,7 +1,7 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import { EffectComposer, Bloom, DepthOfField, Vignette } from "@react-three/postprocessing";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { Suspense, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useNavigate } from "@tanstack/react-router";
 import { GRAPHIC_BLOCKS, preselectGraphic, type GraphicBlock } from "@/lib/graphic-blocks";
@@ -11,10 +11,9 @@ import {
   makeCerebellumGeometry,
   makeCortexGeometry,
   makeRedCellGeometry,
-  makeSkeletonSegments,
   type Segment,
 } from "./anatomy";
-import { HumanModel } from "./HumanModel";
+import { AnatomyModel, type AnatomyKind } from "./AnatomyModel";
 
 const BRAIN_Z = -33;
 const BLUE = new THREE.Color("#0A4FFF");
@@ -43,13 +42,28 @@ function CameraRig() {
 
 /* ------------------------------------------------------- act 0/1: figure */
 
-/** Hero figure: the real textured human skin with a soft medical sheen. */
+/** Hero figure: the real scanned skin model with a soft medical sheen. */
 function BodyFigure() {
   const group = useRef<THREE.Group>(null);
-  const mats = useRef<THREE.MeshPhysicalMaterial[]>([]);
-  const onMaterials = useCallback((m: THREE.MeshPhysicalMaterial[]) => {
-    mats.current = m;
-  }, []);
+  const material = useMemo(
+    () =>
+      new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color("#d9a184"),
+        roughness: 0.62,
+        metalness: 0,
+        clearcoat: 0.25,
+        clearcoatRoughness: 0.6,
+        sheen: 0.6,
+        sheenRoughness: 0.8,
+        sheenColor: new THREE.Color("#ff9d7a"),
+        emissive: new THREE.Color("#3a1410"),
+        emissiveIntensity: 0.2,
+        transparent: true,
+        opacity: 1,
+        side: THREE.DoubleSide,
+      }),
+    [],
+  );
 
   useFrame(({ clock }) => {
     const p = journeyState.progress;
@@ -59,22 +73,25 @@ function BodyFigure() {
       g.scale.setScalar(1 + band(p, 0.1, 0.3) * 1.4);
       g.visible = p < 0.24;
     }
-    const o = 1 - clamp01((p - 0.11) / 0.1);
-    for (const m of mats.current) m.opacity = o;
+    material.opacity = 1 - clamp01((p - 0.11) / 0.1);
   });
 
   return (
     <group ref={group} position={[0, -0.3, -8]}>
-      <HumanModel skin onMaterials={onMaterials} />
+      <Suspense fallback={null}>
+        <AnatomyModel kind="skin" material={material} />
+      </Suspense>
     </group>
   );
 }
 
 
 
+
 /** A group of anatomical segments that fades in and out across a scroll band. */
 function AnatomyLayer({
   segments,
+  kind,
   z,
   from,
   to,
@@ -86,9 +103,9 @@ function AnatomyLayer({
   scale = 1,
   breathe = 0,
   wireframe = false,
-  realSkin = false,
 }: {
   segments?: Segment[];
+  kind?: AnatomyKind;
   z: number;
   from: number;
   to: number;
@@ -100,13 +117,8 @@ function AnatomyLayer({
   scale?: number;
   breathe?: number;
   wireframe?: boolean;
-  realSkin?: boolean;
 }) {
   const group = useRef<THREE.Group>(null);
-  const skinMats = useRef<THREE.MeshPhysicalMaterial[]>([]);
-  const onMaterials = useCallback((m: THREE.MeshPhysicalMaterial[]) => {
-    skinMats.current = m;
-  }, []);
   const material = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
@@ -127,7 +139,6 @@ function AnatomyLayer({
   useFrame(({ clock }) => {
     const a = band(journeyState.progress, from, to, 0.06);
     material.opacity = a * maxOpacity;
-    if (realSkin) for (const m of skinMats.current) m.opacity = a * maxOpacity;
     const g = group.current;
     if (g) {
       g.visible = a > 0.01;
@@ -150,12 +161,17 @@ function AnatomyLayer({
               scale={s.scale ?? [1, 1, 1]}
             />
           ))
-        : realSkin
-          ? <HumanModel skin onMaterials={onMaterials} />
-          : <HumanModel material={material} />}
+        : kind
+          ? (
+            <Suspense fallback={null}>
+              <AnatomyModel kind={kind} material={material} />
+            </Suspense>
+          )
+          : null}
     </group>
   );
 }
+
 
 
 /* --------------------------------------------------------- act 2: brain */
@@ -531,7 +547,6 @@ function Motes() {
 /* ------------------------------------------------------------------ root */
 
 function Scene() {
-  const skeleton = useMemo(() => makeSkeletonSegments(), []);
 
   return (
     <>
@@ -547,6 +562,7 @@ function Scene() {
       <BodyFigure />
       {/* skin → muscle → skeleton */}
       <AnatomyLayer
+        kind="skin"
         z={-8}
         from={0.12}
         to={0.19}
@@ -555,31 +571,32 @@ function Scene() {
         emissive="#ff9d6e"
         roughness={0.75}
         breathe={0.008}
-        realSkin
       />
       <AnatomyLayer
+        kind="muscle"
         z={-10.6}
         from={0.18}
         to={0.25}
-        maxOpacity={0.5}
+        maxOpacity={0.9}
         color="#a52b32"
         emissive="#ff4a48"
         roughness={0.55}
-        scale={0.93}
+        scale={0.99}
         breathe={0.018}
       />
       <AnatomyLayer
-        segments={skeleton}
+        kind="skeleton"
         z={-13.4}
         from={0.24}
         to={0.32}
-        maxOpacity={0.7}
+        maxOpacity={0.95}
         color="#dfeeff"
         emissive="#7fd0ff"
         roughness={0.4}
         metalness={0.15}
-        scale={0.96}
+        scale={0.97}
       />
+
       <Brain />
       <Blocks />
       <Bloodstream />
