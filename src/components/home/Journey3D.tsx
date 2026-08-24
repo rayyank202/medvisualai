@@ -564,6 +564,7 @@ function Scene() {
       <BodyFigure />
       {/* skin → muscle → skeleton */}
       <AnatomyLayer
+        kind="skin"
         z={-8}
         from={0.12}
         to={0.19}
@@ -572,31 +573,32 @@ function Scene() {
         emissive="#ff9d6e"
         roughness={0.75}
         breathe={0.008}
-        realSkin
       />
       <AnatomyLayer
+        kind="muscle"
         z={-10.6}
         from={0.18}
         to={0.25}
-        maxOpacity={0.5}
+        maxOpacity={0.9}
         color="#a52b32"
         emissive="#ff4a48"
         roughness={0.55}
-        scale={0.93}
+        scale={0.99}
         breathe={0.018}
       />
       <AnatomyLayer
-        segments={skeleton}
+        kind="skeleton"
         z={-13.4}
         from={0.24}
         to={0.32}
-        maxOpacity={0.7}
+        maxOpacity={0.95}
         color="#dfeeff"
         emissive="#7fd0ff"
         roughness={0.4}
         metalness={0.15}
-        scale={0.96}
+        scale={0.97}
       />
+
       <Brain />
       <Blocks />
       <Bloodstream />
