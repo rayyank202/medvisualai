@@ -43,13 +43,28 @@ function CameraRig() {
 
 /* ------------------------------------------------------- act 0/1: figure */
 
-/** Hero figure: the real textured human skin with a soft medical sheen. */
+/** Hero figure: the real scanned skin model with a soft medical sheen. */
 function BodyFigure() {
   const group = useRef<THREE.Group>(null);
-  const mats = useRef<THREE.MeshPhysicalMaterial[]>([]);
-  const onMaterials = useCallback((m: THREE.MeshPhysicalMaterial[]) => {
-    mats.current = m;
-  }, []);
+  const material = useMemo(
+    () =>
+      new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color("#d9a184"),
+        roughness: 0.62,
+        metalness: 0,
+        clearcoat: 0.25,
+        clearcoatRoughness: 0.6,
+        sheen: 0.6,
+        sheenRoughness: 0.8,
+        sheenColor: new THREE.Color("#ff9d7a"),
+        emissive: new THREE.Color("#3a1410"),
+        emissiveIntensity: 0.2,
+        transparent: true,
+        opacity: 1,
+        side: THREE.DoubleSide,
+      }),
+    [],
+  );
 
   useFrame(({ clock }) => {
     const p = journeyState.progress;
@@ -59,16 +74,18 @@ function BodyFigure() {
       g.scale.setScalar(1 + band(p, 0.1, 0.3) * 1.4);
       g.visible = p < 0.24;
     }
-    const o = 1 - clamp01((p - 0.11) / 0.1);
-    for (const m of mats.current) m.opacity = o;
+    material.opacity = 1 - clamp01((p - 0.11) / 0.1);
   });
 
   return (
     <group ref={group} position={[0, -0.3, -8]}>
-      <HumanModel skin onMaterials={onMaterials} />
+      <Suspense fallback={null}>
+        <AnatomyModel kind="skin" material={material} />
+      </Suspense>
     </group>
   );
 }
+
 
 
 
