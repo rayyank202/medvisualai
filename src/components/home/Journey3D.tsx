@@ -1,7 +1,7 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import { EffectComposer, Bloom, DepthOfField, Vignette } from "@react-three/postprocessing";
-import { Suspense, useCallback, useMemo, useRef, useState } from "react";
+import { Suspense, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useNavigate } from "@tanstack/react-router";
 import { GRAPHIC_BLOCKS, preselectGraphic, type GraphicBlock } from "@/lib/graphic-blocks";
@@ -11,7 +11,6 @@ import {
   makeCerebellumGeometry,
   makeCortexGeometry,
   makeRedCellGeometry,
-  makeSkeletonSegments,
   type Segment,
 } from "./anatomy";
 import { AnatomyModel, type AnatomyKind } from "./AnatomyModel";
@@ -548,7 +547,6 @@ function Motes() {
 /* ------------------------------------------------------------------ root */
 
 function Scene() {
-  const skeleton = useMemo(() => makeSkeletonSegments(), []);
 
   return (
     <>
