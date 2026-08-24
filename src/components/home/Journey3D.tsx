@@ -92,6 +92,7 @@ function BodyFigure() {
 /** A group of anatomical segments that fades in and out across a scroll band. */
 function AnatomyLayer({
   segments,
+  kind,
   z,
   from,
   to,
@@ -103,9 +104,9 @@ function AnatomyLayer({
   scale = 1,
   breathe = 0,
   wireframe = false,
-  realSkin = false,
 }: {
   segments?: Segment[];
+  kind?: AnatomyKind;
   z: number;
   from: number;
   to: number;
@@ -117,13 +118,8 @@ function AnatomyLayer({
   scale?: number;
   breathe?: number;
   wireframe?: boolean;
-  realSkin?: boolean;
 }) {
   const group = useRef<THREE.Group>(null);
-  const skinMats = useRef<THREE.MeshPhysicalMaterial[]>([]);
-  const onMaterials = useCallback((m: THREE.MeshPhysicalMaterial[]) => {
-    skinMats.current = m;
-  }, []);
   const material = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
@@ -144,7 +140,6 @@ function AnatomyLayer({
   useFrame(({ clock }) => {
     const a = band(journeyState.progress, from, to, 0.06);
     material.opacity = a * maxOpacity;
-    if (realSkin) for (const m of skinMats.current) m.opacity = a * maxOpacity;
     const g = group.current;
     if (g) {
       g.visible = a > 0.01;
@@ -167,12 +162,17 @@ function AnatomyLayer({
               scale={s.scale ?? [1, 1, 1]}
             />
           ))
-        : realSkin
-          ? <HumanModel skin onMaterials={onMaterials} />
-          : <HumanModel material={material} />}
+        : kind
+          ? (
+            <Suspense fallback={null}>
+              <AnatomyModel kind={kind} material={material} />
+            </Suspense>
+          )
+          : null}
     </group>
   );
 }
+
 
 
 /* --------------------------------------------------------- act 2: brain */
