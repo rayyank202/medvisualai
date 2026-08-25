@@ -7,6 +7,9 @@ export const journeyState = {
   mouseY: 0,
 };
 
+/** Head height in scene space — the zoom-in target for the dive. */
+export const HEAD_Y = 2.9;
+
 /** Piecewise map of scroll progress → camera position along the journey spline. */
 export function cameraAt(p: number): [number, number, number] {
   let z: number;
@@ -14,16 +17,19 @@ export function cameraAt(p: number): [number, number, number] {
 
   if (p < 0.1) {
     z = 2 - (p / 0.1) * 3; // hero drift
+    y = HEAD_Y * (p / 0.1) * 0.35; // start lifting toward the head
   } else if (p < 0.32) {
     const t = (p - 0.1) / 0.22;
-    z = -1 - t * 19; // descent through skin / muscle / skeleton
+    z = -1 - t * 19; // zoom into the head through skin / muscle / skull
+    y = HEAD_Y * (0.35 + 0.65 * t);
   } else if (p < 0.6) {
     const t = (p - 0.32) / 0.28;
-    z = -20 - t * 2; // slow approach, brain act
+    z = -20 - t * 2; // inside the head: brain act
+    y = HEAD_Y;
   } else if (p < 0.8) {
     const t = (p - 0.6) / 0.2;
-    z = -22 - t * 48.5; // dive into the vessel
-    y = -4 * Math.min(1, t * 1.6);
+    z = -22 - t * 48.5; // dive down into the vessel
+    y = HEAD_Y + (-4 - HEAD_Y) * Math.min(1, t * 1.6);
   } else {
     const t = (p - 0.8) / 0.2;
     z = -70.5 - t * 26; // out into the light
