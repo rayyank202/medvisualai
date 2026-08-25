@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { useNavigate } from "@tanstack/react-router";
 import { GRAPHIC_BLOCKS, preselectGraphic, type GraphicBlock } from "@/lib/graphic-blocks";
 import { openChatWidget } from "@/components/site/ChatWidget";
-import { journeyState, cameraAt, band, clamp01 } from "./journey-state";
+import { journeyState, cameraAt, band, clamp01, HEAD_Y } from "./journey-state";
 import {
   makeCerebellumGeometry,
   makeCortexGeometry,
@@ -242,7 +242,7 @@ function Brain() {
   });
 
   return (
-    <group ref={group} position={[0, 0.4, BRAIN_Z]}>
+    <group ref={group} position={[0, HEAD_Y, BRAIN_Z]}>
       {LOBES.map((l, i) => (
         <mesh
           key={i}
@@ -283,7 +283,7 @@ function BlockSlab({ block, i, onOpen }: { block: GraphicBlock; i: number; onOpe
     () =>
       new THREE.Vector3(
         Math.cos(angle) * radius,
-        Math.sin(angle) * radius * 0.62 + 0.4,
+        Math.sin(angle) * radius * 0.62 + HEAD_Y,
         BRAIN_Z + 4.5 + Math.sin(i * 1.7) * 1.2,
       ),
     [angle, i],
@@ -296,7 +296,7 @@ function BlockSlab({ block, i, onOpen }: { block: GraphicBlock; i: number; onOpe
     g.visible = appear > 0.01;
     if (g.visible !== shown) setShown(g.visible);
     const bob = Math.sin(clock.elapsedTime * 0.9 + i) * 0.16;
-    g.position.set(base.x * (0.4 + appear * 0.6), base.y * (0.4 + appear * 0.6) + bob, base.z);
+    g.position.set(base.x * (0.4 + appear * 0.6), HEAD_Y + (base.y - HEAD_Y) * (0.4 + appear * 0.6) + bob, base.z);
     const target = hovered ? 1.09 : 1;
     g.scale.lerp(new THREE.Vector3(target, target, target).multiplyScalar(appear), 0.12);
     g.lookAt(camera.position);
@@ -556,7 +556,7 @@ function Scene() {
       <hemisphereLight args={["#bfe4ff", "#0a1c2e", 0.7]} />
       <directionalLight position={[4, 6, 6]} intensity={1.4} color={CYAN} />
       <directionalLight position={[-6, -2, -4]} intensity={0.7} color={BLUE} />
-      <spotLight position={[0, 6, -28]} angle={0.7} penumbra={0.9} intensity={55} color="#dff2ff" distance={40} />
+      <spotLight position={[0, 6 + HEAD_Y, -28]} angle={0.7} penumbra={0.9} intensity={55} color="#dff2ff" distance={40} />
       <CameraRig />
       <Motes />
       <BodyFigure />
