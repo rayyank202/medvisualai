@@ -560,23 +560,12 @@ function Scene() {
       <CameraRig />
       <Motes />
       <BodyFigure />
-      {/* skin → muscle → skeleton */}
-      <AnatomyLayer
-        kind="skin"
-        z={-8}
-        from={0.12}
-        to={0.19}
-        maxOpacity={0.85}
-        color="#e8b090"
-        emissive="#ff9d6e"
-        roughness={0.75}
-        breathe={0.008}
-      />
+      {/* muscle → skeleton (skin is the hero figure above) */}
       <AnatomyLayer
         kind="muscle"
-        z={-10.6}
-        from={0.18}
-        to={0.25}
+        z={-11.5}
+        from={0.16}
+        to={0.24}
         maxOpacity={0.9}
         color="#a52b32"
         emissive="#ff4a48"
@@ -586,7 +575,7 @@ function Scene() {
       />
       <AnatomyLayer
         kind="skeleton"
-        z={-13.4}
+        z={-17}
         from={0.24}
         to={0.32}
         maxOpacity={0.95}
@@ -596,6 +585,7 @@ function Scene() {
         metalness={0.15}
         scale={0.97}
       />
+
 
       <Brain />
       <Blocks />
