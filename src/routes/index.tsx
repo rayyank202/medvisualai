@@ -6,6 +6,7 @@ import { ChatWidget } from "@/components/site/ChatWidget";
 import { JourneyOverlay } from "@/components/home/JourneyOverlay";
 import { SurfaceSections } from "@/components/home/SurfaceSections";
 import { Fallback2D } from "@/components/home/Fallback2D";
+import { JourneyControls } from "@/components/home/JourneyControls";
 import { journeyState, clamp01 } from "@/components/home/journey-state";
 
 const Journey3D = lazy(() => import("@/components/home/Journey3D"));
@@ -105,6 +106,17 @@ function Home() {
             />
           </div>
           {inJourney && <JourneyOverlay progress={progress} />}
+          <div className="pointer-events-none sticky bottom-0 z-30 h-0">
+            <div className="pointer-events-none relative -top-[100vh] h-screen">
+              <JourneyControls
+                onReset={() => {
+                  const el = sectionRef.current;
+                  if (!el) return;
+                  window.scrollTo({ top: el.offsetTop + 4, behavior: "smooth" });
+                }}
+              />
+            </div>
+          </div>
         </div>
       )}
 

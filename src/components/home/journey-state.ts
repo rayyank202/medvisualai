@@ -5,7 +5,15 @@ export const journeyState = {
   /** normalised pointer position, -1 → 1 */
   mouseX: 0,
   mouseY: 0,
+  /** cross-section mode: freeze the camera and slice the layered figure */
+  crossSection: false,
+  /** slice plane position, -1 → 1 */
+  slice: 0,
 };
+
+/** Camera pose used by the cross-section / reset view. */
+export const CROSS_CAM: [number, number, number] = [0, 0.2, 8.5];
+
 
 /** Head height in scene space — the zoom-in target for the dive. */
 export const HEAD_Y = 2.9;
