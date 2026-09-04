@@ -185,16 +185,20 @@ interface Lobe {
 }
 
 const LOBES: Lobe[] = [
-  { pos: [-0.42, 0.42, 0.72], color: "#f0a8c4", kind: "cortex", size: 0.78, stretch: [1, 0.95, 1.15] },
-  { pos: [0.42, 0.42, 0.72], color: "#f2b3cb", kind: "cortex", size: 0.78, stretch: [1, 0.95, 1.15] },
-  { pos: [-0.42, 0.66, -0.2], color: "#8ab4ff", kind: "cortex", size: 0.72, stretch: [1, 0.9, 1] },
-  { pos: [0.42, 0.66, -0.2], color: "#9dc2ff", kind: "cortex", size: 0.72, stretch: [1, 0.9, 1] },
-  { pos: [-0.72, -0.12, 0.26], color: "#f5c383", kind: "cortex", size: 0.6, stretch: [0.75, 0.8, 1.35] },
-  { pos: [0.72, -0.12, 0.26], color: "#f7cd95", kind: "cortex", size: 0.6, stretch: [0.75, 0.8, 1.35] },
-  { pos: [-0.34, 0.3, -0.8], color: "#8fe3b6", kind: "cortex", size: 0.62, stretch: [1, 0.95, 0.85] },
-  { pos: [0.34, 0.3, -0.8], color: "#a6ecc6", kind: "cortex", size: 0.62, stretch: [1, 0.95, 0.85] },
-  { pos: [0, -0.62, -0.72], color: "#c3a8f5", kind: "cerebellum", size: 0.72 },
-  { pos: [0, -0.92, -0.12], color: "#e7d3b4", kind: "stem", size: 0.26 },
+  // frontal
+  { pos: [-0.46, 0.34, 0.78], color: "#e3a79c", kind: "cortex", size: 0.8, stretch: [0.95, 0.95, 1.2] },
+  { pos: [0.46, 0.34, 0.78], color: "#e8b0a4", kind: "cortex", size: 0.8, stretch: [0.95, 0.95, 1.2] },
+  // parietal
+  { pos: [-0.44, 0.62, -0.16], color: "#d9988f", kind: "cortex", size: 0.76, stretch: [0.95, 0.92, 1.05] },
+  { pos: [0.44, 0.62, -0.16], color: "#dda096", kind: "cortex", size: 0.76, stretch: [0.95, 0.92, 1.05] },
+  // temporal
+  { pos: [-0.78, -0.16, 0.24], color: "#cf8f88", kind: "cortex", size: 0.62, stretch: [0.7, 0.78, 1.4] },
+  { pos: [0.78, -0.16, 0.24], color: "#d4968e", kind: "cortex", size: 0.62, stretch: [0.7, 0.78, 1.4] },
+  // occipital
+  { pos: [-0.36, 0.26, -0.86], color: "#d29a94", kind: "cortex", size: 0.64, stretch: [1, 0.95, 0.85] },
+  { pos: [0.36, 0.26, -0.86], color: "#d7a29b", kind: "cortex", size: 0.64, stretch: [1, 0.95, 0.85] },
+  { pos: [0, -0.6, -0.78], color: "#bd8078", kind: "cerebellum", size: 0.74 },
+  { pos: [0, -0.94, -0.16], color: "#e0c3ad", kind: "stem", size: 0.24 },
 ];
 
 
@@ -209,7 +213,7 @@ function Brain() {
           ? makeCerebellumGeometry(l.size)
           : l.kind === "stem"
             ? new THREE.CapsuleGeometry(l.size, 0.7, 8, 20)
-            : makeCortexGeometry(l.size, l.stretch ?? [1, 1, 1], 4.6, 0.16),
+            : makeCortexGeometry(l.size, l.stretch ?? [1, 1, 1], 6.4, 0.2),
       ),
     [],
   );
@@ -217,27 +221,24 @@ function Brain() {
   useFrame(({ clock }) => {
     const p = journeyState.progress;
     const appear = band(p, 0.3, 0.66, 0.08);
-    const spread = clamp01((p - 0.36) / 0.16);
+    // gentle "exploded view" — lobes only separate enough to read as regions
+    const spread = clamp01((p - 0.38) / 0.18);
     if (group.current) {
       group.current.rotation.y = clock.elapsedTime * 0.1 + journeyState.mouseX * 0.28;
       group.current.rotation.x = journeyState.mouseY * -0.1;
       group.current.visible = appear > 0.01;
-      group.current.scale.setScalar(0.45 + appear * 0.35);
+      group.current.scale.setScalar((0.72 + appear * 0.5) * (1 + Math.sin(clock.elapsedTime * 1.1) * 0.006));
     }
     lobes.current.forEach((m, i) => {
       if (!m) return;
       const base = LOBES[i]!.pos;
       const dir = new THREE.Vector3(base[0], base[1] + 0.15, base[2]).normalize();
-      const off = dir.multiplyScalar(spread * 1.5);
-      m.position.set(
-        base[0] + off.x,
-        base[1] + off.y + Math.sin(clock.elapsedTime * 0.8 + i) * 0.05,
-        base[2] + off.z,
-      );
+      const off = dir.multiplyScalar(spread * 0.4);
+      m.position.set(base[0] + off.x, base[1] + off.y, base[2] + off.z);
       const mat = m.material as THREE.MeshStandardMaterial;
       mat.opacity = appear;
       // neural activity wave travelling across the lobes
-      mat.emissiveIntensity = 0.06 + Math.max(0, Math.sin(clock.elapsedTime * 1.6 - i * 0.55)) * 0.22;
+      mat.emissiveIntensity = 0.05 + Math.max(0, Math.sin(clock.elapsedTime * 1.6 - i * 0.55)) * 0.16;
     });
   });
 
