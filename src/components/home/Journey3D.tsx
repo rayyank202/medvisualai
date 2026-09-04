@@ -627,6 +627,15 @@ function Motes() {
 
 /* ------------------------------------------------------------------ root */
 
+/** Hides the scroll journey while the cross-section explorer is open. */
+function JourneyWorld({ children }: { children: React.ReactNode }) {
+  const group = useRef<THREE.Group>(null);
+  useFrame(() => {
+    if (group.current) group.current.visible = !journeyState.crossSection;
+  });
+  return <group ref={group}>{children}</group>;
+}
+
 function Scene() {
 
   return (
@@ -639,38 +648,39 @@ function Scene() {
       <directionalLight position={[-6, -2, -4]} intensity={0.7} color={BLUE} />
       <spotLight position={[0, 6 + HEAD_Y, -28]} angle={0.7} penumbra={0.9} intensity={55} color="#dff2ff" distance={40} />
       <CameraRig />
-      <Motes />
-      <BodyFigure />
-      {/* muscle → skeleton (skin is the hero figure above) */}
-      <AnatomyLayer
-        kind="muscle"
-        z={-11.5}
-        from={0.16}
-        to={0.24}
-        maxOpacity={0.9}
-        color="#a52b32"
-        emissive="#ff4a48"
-        roughness={0.55}
-        scale={0.99}
-        breathe={0.018}
-      />
-      <AnatomyLayer
-        kind="skeleton"
-        z={-17}
-        from={0.24}
-        to={0.32}
-        maxOpacity={0.95}
-        color="#dfeeff"
-        emissive="#7fd0ff"
-        roughness={0.4}
-        metalness={0.15}
-        scale={0.97}
-      />
-
-
-      <Brain />
-      <Blocks />
-      <Bloodstream />
+      <CrossSection />
+      <JourneyWorld>
+        <Motes />
+        <BodyFigure />
+        {/* muscle → skeleton (skin is the hero figure above) */}
+        <AnatomyLayer
+          kind="muscle"
+          z={-11.5}
+          from={0.16}
+          to={0.24}
+          maxOpacity={0.9}
+          color="#a52b32"
+          emissive="#ff4a48"
+          roughness={0.55}
+          scale={0.99}
+          breathe={0.018}
+        />
+        <AnatomyLayer
+          kind="skeleton"
+          z={-17}
+          from={0.24}
+          to={0.32}
+          maxOpacity={0.95}
+          color="#dfeeff"
+          emissive="#7fd0ff"
+          roughness={0.4}
+          metalness={0.15}
+          scale={0.97}
+        />
+        <Brain />
+        <Blocks />
+        <Bloodstream />
+      </JourneyWorld>
       {!(globalThis as any).__noFX && (<EffectComposer enableNormalPass={false}>
         <Bloom intensity={0.5} luminanceThreshold={0.62} luminanceSmoothing={0.5} mipmapBlur />
         <Vignette eskil={false} offset={0.25} darkness={0.75} />
@@ -685,8 +695,12 @@ export default function Journey3D() {
       dpr={[1, 2]}
       camera={{ position: [0, 0, 2], fov: 58, near: 0.1, far: 160 }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
+      onCreated={({ gl }) => {
+        gl.localClippingEnabled = true;
+      }}
     >
       <Scene />
     </Canvas>
   );
 }
+
