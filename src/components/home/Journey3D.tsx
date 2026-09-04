@@ -24,21 +24,101 @@ const CYAN = new THREE.Color("#00D5FF");
 function CameraRig() {
   const { camera } = useThree();
   const target = useRef(new THREE.Vector3(0, 0, 2));
+  const look = useRef(new THREE.Vector3(0, 0, -10));
 
   useFrame((_, delta) => {
+    const k = 1 - Math.pow(0.0016, delta);
+    if (journeyState.crossSection) {
+      target.current.set(
+        CROSS_CAM[0] + journeyState.mouseX * 0.8,
+        CROSS_CAM[1] + journeyState.mouseY * -0.5,
+        CROSS_CAM[2],
+      );
+      camera.position.lerp(target.current, k);
+      look.current.lerp(new THREE.Vector3(0, 0.2, 0), k);
+      camera.lookAt(look.current);
+      return;
+    }
     const p = journeyState.progress;
     const [x, y, z] = cameraAt(p);
     target.current.set(x + journeyState.mouseX * 1.1, y + journeyState.mouseY * -0.7, z);
-    const k = 1 - Math.pow(0.0016, delta);
     camera.position.lerp(target.current, k);
-    camera.lookAt(
+    look.current.set(
       journeyState.mouseX * 0.6,
       camera.position.y + journeyState.mouseY * -0.3,
       camera.position.z - 10,
     );
+    camera.lookAt(look.current);
   });
   return null;
 }
+
+/* ------------------------------------------------- cross-section explorer */
+
+const CROSS_LAYERS: {
+  kind: AnatomyKind;
+  color: string;
+  emissive: string;
+  scale: number;
+  label: string;
+}[] = [
+  { kind: "skin", color: "#e6ab8c", emissive: "#5a2418", scale: 1, label: "Skin" },
+  { kind: "muscle", color: "#c33a3c", emissive: "#701018", scale: 0.985, label: "Muscle" },
+  { kind: "skeleton", color: "#e6f2ff", emissive: "#4c9fd4", scale: 0.955, label: "Bone" },
+];
+
+/** All three layers stacked and sliced by a moving clipping plane. */
+function CrossSection() {
+  const group = useRef<THREE.Group>(null);
+  const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 0, -1), 0), []);
+
+  const materials = useMemo(
+    () =>
+      CROSS_LAYERS.map(
+        (l) =>
+          new THREE.MeshStandardMaterial({
+            color: new THREE.Color(l.color),
+            emissive: new THREE.Color(l.emissive),
+            emissiveIntensity: 0.3,
+            roughness: 0.55,
+            metalness: 0.05,
+            side: THREE.DoubleSide,
+            clippingPlanes: [plane],
+            clipShadows: true,
+            transparent: true,
+            opacity: 1,
+          }),
+      ),
+    [plane],
+  );
+
+  useFrame((_, delta) => {
+    const on = journeyState.crossSection;
+    const g = group.current;
+    if (!g) return;
+    const t = THREE.MathUtils.damp(g.scale.x, on ? 1 : 0.001, 6, delta);
+    g.scale.setScalar(t);
+    g.visible = on || t > 0.01;
+    g.rotation.y = journeyState.mouseX * 0.35;
+    plane.constant = journeyState.slice * 1.1;
+    materials.forEach((m) => (m.opacity = on ? 1 : 0.2));
+  });
+
+  return (
+    <group ref={group} position={[0, 0, 0]} scale={0.001} visible={false}>
+      {CROSS_LAYERS.map((l, i) => (
+        <group key={l.kind} scale={l.scale}>
+          <Suspense fallback={null}>
+            <AnatomyModel kind={l.kind} material={materials[i]!} />
+          </Suspense>
+        </group>
+      ))}
+      <pointLight position={[0, 1.5, 4]} intensity={30} distance={16} color="#dff2ff" />
+      <pointLight position={[-3, 0, 2]} intensity={16} distance={16} color="#0A4FFF" />
+    </group>
+  );
+}
+
 
 /* ------------------------------------------------------- act 0/1: figure */
 
