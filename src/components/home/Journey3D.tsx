@@ -420,19 +420,16 @@ function BlockSlab({ block, i, onOpen }: { block: GraphicBlock; i: number; onOpe
           ior={1.4}
         />
       </mesh>
-      {shown && (
+      {shown && hovered && (
         <Html center distanceFactor={9} pointerEvents="none" zIndexRange={[20, 0]}>
-          <div className="w-44 select-none text-center">
-            <p className="text-[13px] font-semibold text-white drop-shadow">{block.name}</p>
-            {hovered && (
-              <>
-                <p className="mt-1 text-[10px] leading-tight text-white/75">{block.description}</p>
-                <p className="mt-1 text-[10px] font-semibold text-white">Open →</p>
-              </>
-            )}
+          <div className="w-48 animate-scale-in select-none rounded-lg border border-white/20 bg-[#061426]/90 px-3 py-2 text-center backdrop-blur">
+            <p className="text-[13px] font-semibold text-white">{block.name}</p>
+            <p className="mt-1 text-[10px] leading-tight text-white/75">{block.description}</p>
+            <p className="mt-1 text-[10px] font-semibold text-white">Open →</p>
           </div>
         </Html>
       )}
+
     </group>
   );
 }
