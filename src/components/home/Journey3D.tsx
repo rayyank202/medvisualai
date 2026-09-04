@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { useNavigate } from "@tanstack/react-router";
 import { GRAPHIC_BLOCKS, preselectGraphic, type GraphicBlock } from "@/lib/graphic-blocks";
 import { openChatWidget } from "@/components/site/ChatWidget";
-import { journeyState, cameraAt, band, clamp01, HEAD_Y } from "./journey-state";
+import { journeyState, cameraAt, band, clamp01, HEAD_Y, CROSS_CAM } from "./journey-state";
 import {
   makeCerebellumGeometry,
   makeCortexGeometry,
